@@ -65,15 +65,15 @@ export interface OutputPreset {
   /** Target bitrate in kbps */
   bitrate: number;
   /** Video codec (h264, vp9, etc.) */
-  videoCodec: string;
+  videoCodec: 'h264' | 'h265' | 'hevc' | 'vp9' | 'av1';
   /** CRF quality (0-51 for h264, lower = better) */
   crf?: number;
   /** Audio bitrate in kbps */
   audioBitrate: number;
   /** Audio codec */
-  audioCodec: string;
+  audioCodec: 'aac' | 'libopus' | 'libvorbis' | 'mp3';
   /** Container format (mp4, webm, mov) */
-  container: string;
+  container: 'mp4' | 'webm' | 'mov' | 'mkv';
   /** Intro slate configuration */
   introSlate?: SlateConfig;
   /** Outro slate configuration */

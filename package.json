@@ -20,9 +20,9 @@
     "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
-    "electron-squirrel-startup": "^1.1.1",
+    "electron-squirrel-startup": "^1.0.1",
     "ffmpeg-static": "^5.2.0",
-    "ffprobe-static": "^4.4.1",
+    "ffprobe-static": "^3.1.0",
     "pino": "^8.16.1",
     "uuid": "^9.0.0",
     "yaml": "^2.3.2",

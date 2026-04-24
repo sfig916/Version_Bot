@@ -132,7 +132,7 @@ export default function PresetSelector({
             <label>
               Filename Template
               <span className="help-text">
-                Use {{'{preset}'}} {{'{width}x{height}'}} {{'{timestamp}'}} {{'{ext}'}}
+                Use {'{preset}'} {'{width}x{height}'} {'{timestamp}'} {'{ext}'}
               </span>
             </label>
             <input

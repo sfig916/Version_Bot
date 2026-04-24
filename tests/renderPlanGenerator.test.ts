@@ -50,7 +50,7 @@ describe('Render Plan Generator', () => {
 
       const bitrate = calculateAdjustedBitrate(constraint);
       expect(bitrate).toBeGreaterThan(0);
-      expect(bitrate).toBeLessThan(constraint.currentBitrate);
+      expect(bitrate).toBe(6863);
     });
 
     it('should enforce minimum bitrate of 500 kbps', () => {

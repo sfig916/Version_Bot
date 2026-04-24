@@ -3,14 +3,14 @@
  * Creates a list of render jobs from video metadata and presets
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import {
   VideoMetadata,
   OutputPreset,
   RenderJob,
   RenderPlan,
   FileSizeConstraint,
-} from './types';
+} from '../models/types';
 
 /**
  * Calculate target bitrate based on file size constraint
@@ -62,7 +62,7 @@ export function generateRenderJobs(
   filenameTemplate: string
 ): RenderJob[] {
   return presets.map((preset) => {
-    const jobId = uuidv4();
+    const jobId = randomUUID();
 
     // Validate preset resolution compatibility
     if (
@@ -140,7 +140,7 @@ export function createRenderPlan(
   filenameTemplate: string = '{preset}_{width}x{height}_{timestamp}.{ext}',
   fileSizeConstraints?: Map<string, number>
 ): RenderPlan {
-  const planId = uuidv4();
+  const planId = randomUUID();
   const jobs = generateRenderJobs(
     source,
     presets,
