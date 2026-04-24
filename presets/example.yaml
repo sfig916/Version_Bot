@@ -1,0 +1,115 @@
+# Version Bot - Example Presets Configuration
+# This file demonstrates all preset options and their usage
+
+metadata:
+  version: '1.0'
+  description: 'Example presets for Version Bot video export tool'
+
+presets:
+  # Standard HD 1080p for streaming
+  - id: 'hd_1080p_h264'
+    name: 'HD 1080p (H.264)'
+    width: 1920
+    height: 1080
+    scalingMode: 'letterbox'
+    bitrate: 5000
+    videoCodec: 'h264'
+    crf: 23
+    audioBitrate: 128
+    audioCodec: 'aac'
+    container: 'mp4'
+    introSlate:
+      enabled: false
+      duration: 3
+    outroSlate:
+      enabled: false
+      duration: 2
+    overlay:
+      enabled: false
+      position: 'br'
+      widthPercent: 15
+      timing: 'full'
+
+  # HD 720p - lower bandwidth version
+  - id: 'hd_720p'
+    name: 'HD 720p'
+    width: 1280
+    height: 720
+    scalingMode: 'letterbox'
+    bitrate: 2500
+    videoCodec: 'h264'
+    crf: 23
+    audioBitrate: 128
+    audioCodec: 'aac'
+    container: 'mp4'
+
+  # 4K version for archival
+  - id: '4k_2160p_h265'
+    name: '4K 2160p (H.265)'
+    width: 3840
+    height: 2160
+    scalingMode: 'scale'
+    bitrate: 15000
+    videoCodec: 'h265'
+    crf: 23
+    audioBitrate: 192
+    audioCodec: 'aac'
+    container: 'mp4'
+
+  # Web-optimized VP9 format
+  - id: 'web_vp9_720p'
+    name: 'Web VP9 720p'
+    width: 1280
+    height: 720
+    scalingMode: 'letterbox'
+    bitrate: 2000
+    videoCodec: 'vp9'
+    audioBitrate: 128
+    audioCodec: 'libopus'
+    container: 'webm'
+    overlay:
+      enabled: true
+      assetPath: 'assets/watermark.png'
+      position: 'br'
+      widthPercent: 15
+      timing: 'full'
+
+  # Mobile-optimized low bitrate
+  - id: 'mobile_360p'
+    name: 'Mobile 360p'
+    width: 640
+    height: 360
+    scalingMode: 'pillarbox'
+    bitrate: 800
+    videoCodec: 'h264'
+    crf: 28
+    audioBitrate: 96
+    audioCodec: 'aac'
+    container: 'mp4'
+
+  # Editorial format with slates and watermark
+  - id: 'editorial_1080p'
+    name: 'Editorial 1080p with Slates'
+    width: 1920
+    height: 1080
+    scalingMode: 'letterbox'
+    bitrate: 5000
+    videoCodec: 'h264'
+    crf: 23
+    audioBitrate: 128
+    audioCodec: 'aac'
+    container: 'mp4'
+    introSlate:
+      enabled: true
+      assetPath: 'assets/intro_slate.mov'
+      duration: 3
+    outroSlate:
+      enabled: true
+      assetPath: 'assets/outro_slate.mov'
+      duration: 2
+    overlay:
+      enabled: true
+      assetPath: 'assets/esrb_rating_e.png'
+      position: 'tr'
+      widthPercent: 12
+      timing: 'full'

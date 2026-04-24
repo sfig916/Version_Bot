@@ -1,0 +1,32 @@
+Build a cross-platform desktop app for video versioning.
+
+Goal:
+- User selects one master video file.
+- App detects source resolution, aspect ratio, duration, bitrate, and codec using ffprobe.
+- App lets the user choose output presets for multiple resolutions (same aspect ratio).
+- App exports all versions with FFmpeg.
+- App can prepend and append custom mnemonics/slates.
+- App can overlay a rating card or ESRB-style slate per preset (in one of the 4 corners, selectable).
+- User can input an max filesize and app adjusts bitrate to accomodate.
+- App should support batch export, progress reporting, cancel, logs, and output filename templates.
+
+Requirements:
+- Use a clean architecture with separate modules for UI, job planning, media probing, FFmpeg execution, and preset templates.
+- Prefer a local-first workflow.
+- Make the preset system data-driven using JSON or YAML.
+- Add unit tests for preset parsing and render-plan generation.
+- Include a minimal but functional MVP UI.
+- Keep the FFmpeg commands explicit and readable.
+- Add placeholders for intro/outro assets and overlay assets.
+- Handle common cases like pillarbox, letterbox, and crop modes.
+- Include an example preset file and sample output manifest.
+
+Please:
+1. Propose the best stack for this project.
+2. Create the initial folder structure.
+3. Implement the core data models.
+4. Implement a render-plan generator.
+5. Implement the FFmpeg command builder.
+6. Stub the UI with a working file picker, preset picker, and export button.
+7. Add tests.
+8. Explain any assumptions or edge cases that need product decisions.

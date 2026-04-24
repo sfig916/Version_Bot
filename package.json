@@ -1,0 +1,77 @@
+{
+  "name": "version-bot",
+  "version": "0.1.0",
+  "description": "Cross-platform desktop app for video versioning and batch export",
+  "main": "dist/main/index.js",
+  "homepage": "./",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron dist/main/index.js",
+    "dev": "concurrently npm:dev:main npm:dev:renderer",
+    "dev:main": "tsc -w --project src/main/tsconfig.json",
+    "dev:renderer": "vite dev",
+    "build": "npm run build:main && npm run build:renderer",
+    "build:main": "tsc --project src/main/tsconfig.json",
+    "build:renderer": "vite build",
+    "pack": "electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "lint": "eslint src --ext .ts,.tsx"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "^1.1.1",
+    "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^4.4.1",
+    "pino": "^8.16.1",
+    "uuid": "^9.0.0",
+    "yaml": "^2.3.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.3.0",
+    "@types/node": "^20.5.0",
+    "@types/react": "^18.2.20",
+    "@types/react-dom": "^18.2.7",
+    "@vitejs/plugin-react": "^4.0.3",
+    "concurrently": "^8.2.1",
+    "electron": "^26.0.0",
+    "electron-builder": "^24.6.4",
+    "eslint": "^8.48.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.2.2",
+    "vite": "^4.4.9",
+    "vitest": "^0.34.4"
+  },
+  "build": {
+    "appId": "com.versionbot.app",
+    "productName": "Version Bot",
+    "directories": {
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
+  }
+}
