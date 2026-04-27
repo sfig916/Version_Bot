@@ -2,7 +2,7 @@
  * Video metadata probing using ffprobe
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import path from 'path';
 import { VideoMetadata } from '../models/types';
 
@@ -49,12 +49,9 @@ function getFFprobePath(): string {
 export async function probeVideo(filePath: string): Promise<VideoMetadata> {
   const ffprobePath = getFFprobePath();
 
-  const command = [
-    ffprobePath,
+  const args = [
     '-v',
     'error',
-    '-select_streams',
-    'v:0:a:0',
     '-show_entries',
     'stream=width,height,avg_frame_rate,duration,bit_rate,codec_name,sample_rate',
     '-of',
@@ -64,7 +61,7 @@ export async function probeVideo(filePath: string): Promise<VideoMetadata> {
 
   let output: string;
   try {
-    output = execSync(command.join(' '), { encoding: 'utf-8' });
+    output = execFileSync(ffprobePath, args, { encoding: 'utf-8' });
   } catch (error) {
     throw new Error(
       `Failed to probe video: ${error instanceof Error ? error.message : String(error)}`

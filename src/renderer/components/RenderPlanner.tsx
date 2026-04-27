@@ -8,11 +8,17 @@ import './RenderPlanner.css';
 
 interface RenderPlannerProps {
   plan: RenderPlan;
+  isRendering: boolean;
+  onStartRender: () => void;
+  onCancelRender: () => void;
   onReset: () => void;
 }
 
 export default function RenderPlanner({
   plan,
+  isRendering,
+  onStartRender,
+  onCancelRender,
   onReset,
 }: RenderPlannerProps) {
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
@@ -47,6 +53,23 @@ export default function RenderPlanner({
 
       <div className="planner-content">
         <h2>Render Plan</h2>
+
+        <div className="planner-actions">
+          <button
+            className="btn btn-primary"
+            onClick={onStartRender}
+            disabled={isRendering || plan.jobs.length === 0}
+          >
+            {isRendering ? 'Rendering...' : 'Start Render'}
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={onCancelRender}
+            disabled={!isRendering}
+          >
+            Cancel Render
+          </button>
+        </div>
 
         <div className="plan-summary">
           <div className="summary-item">
@@ -121,6 +144,24 @@ export default function RenderPlanner({
                         {job.preset.videoCodec} @ {job.adjustedBitrate || job.preset.bitrate}kbps
                       </span>
                     </div>
+                    {job.maxFileSizeMB > 0 && (
+                      <div className="detail-row">
+                        <span className="label">Max Filesize:</span>
+                        <span className="value">{job.maxFileSizeMB} MB</span>
+                      </div>
+                    )}
+                    {(job.preset.introSlate?.enabled ||
+                      job.preset.outroSlate?.enabled ||
+                      job.preset.overlay?.enabled) && (
+                      <div className="detail-row">
+                        <span className="label">Assets:</span>
+                        <span className="value">
+                          {job.preset.introSlate?.enabled ? 'prepend ' : ''}
+                          {job.preset.outroSlate?.enabled ? 'append ' : ''}
+                          {job.preset.overlay?.enabled ? 'overlay' : ''}
+                        </span>
+                      </div>
+                    )}
                     <div className="detail-row">
                       <span className="label">Output:</span>
                       <span className="value">{job.outputPath}</span>
@@ -157,10 +198,10 @@ export default function RenderPlanner({
           <h3>Plan Information</h3>
           <div className="info-box">
             <p>
-              <strong>Note:</strong> This is a preview of the render plan. Export functionality is coming in the next release.
+              <strong>Execution:</strong> Use Start Render to process all jobs in sequence.
             </p>
             <p>
-              You can view the FFmpeg command for each job to understand what will be executed.
+              You can cancel an active run and inspect FFmpeg command details for each job.
             </p>
           </div>
         </div>

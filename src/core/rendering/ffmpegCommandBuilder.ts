@@ -4,7 +4,7 @@
  */
 
 import path from 'path';
-import { RenderJob, OutputPreset, ScalingMode } from '../models/types';
+import { RenderJob, ScalingMode } from '../models/types';
 
 export interface FFmpegCommand {
   /** Program name */
@@ -51,7 +51,7 @@ function buildScaleFilter(
 
     case 'crop':
       // Crop to fill frame while maintaining aspect ratio
-      return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2`;
+      return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,crop=${targetWidth}:${targetHeight}`;
 
     default:
       return `scale=${targetWidth}:${targetHeight}`;
@@ -59,24 +59,23 @@ function buildScaleFilter(
 }
 
 /**
- * Build overlay filter string for rating/slate placement
+ * Build overlay filter string for ESRB overlay placement
+ * Overlays are pre-positioned at 3840x2160 resolution with transparency
+ * and need to be scaled to match the output resolution
  */
 function buildOverlayFilter(
   videoFilter: string,
-  overlayWidth: string,
-  overlayPosition: 'tl' | 'tr' | 'bl' | 'br'
+  outputWidth: number,
+  outputHeight: number
 ): string {
-  const positionMap = {
-    tl: 'x=0:y=0',
-    tr: `x=W-w:y=0`,
-    bl: `x=0:y=H-h`,
-    br: `x=W-w:y=H-h`,
-  };
-
-  const positionStr = positionMap[overlayPosition];
-  const scaledOverlay = `scale=${overlayWidth}:-1`;
-
-  return `${videoFilter}[v];[1:v]${scaledOverlay}[ov];[v][ov]overlay=${positionStr}[vout]`;
+  // Calculate scale factor based on output resolution
+  // Input overlay is always 3840x2160, scale to match output
+  const scaleFactor = outputWidth / 3840;
+  const scaledHeight = Math.round(2160 * scaleFactor);
+  
+  // Overlay is already positioned in the image file, so overlay at 0:0
+  // Scale the overlay to match output resolution, then overlay at top-left
+  return `${videoFilter}[v];[1:v]scale=${outputWidth}:${scaledHeight}[ov];[v][ov]overlay=0:0[vout]`;
 }
 
 /**
@@ -101,51 +100,28 @@ export function buildFFmpegCommand(job: RenderJob): FFmpegCommand {
   // Apply overlay if configured
   if (preset.overlay?.enabled && preset.overlay.assetPath) {
     args.push('-i', preset.overlay.assetPath);
-    const overlayWidthPercent = preset.overlay.widthPercent;
-    const overlayWidth = Math.round((preset.width * overlayWidthPercent) / 100);
     videoFilter = buildOverlayFilter(
       videoFilter,
-      overlayWidth.toString(),
-      preset.overlay.position
+      preset.width,
+      preset.height
     );
   }
 
   // Add filter graph
   args.push('-filter:v', videoFilter);
 
-  // Video encoding
+  // Video encoding — always h264 CBR (no CRF)
   const bitrate = job.adjustedBitrate || preset.bitrate;
+  args.push('-c:v', 'libx264');
+  args.push('-b:v', `${bitrate}k`);
+  args.push('-preset', 'medium');
+  args.push('-r', '60000/1001');
 
-  if (preset.videoCodec === 'h264') {
-    args.push('-c:v', 'libx264');
-    if (preset.crf) {
-      args.push('-crf', preset.crf.toString());
-    } else {
-      args.push('-b:v', `${bitrate}k`);
-    }
-    args.push('-preset', 'medium'); // fast, medium, slow
-  } else if (preset.videoCodec === 'h265' || preset.videoCodec === 'hevc') {
-    args.push('-c:v', 'libx265');
-    if (preset.crf) {
-      args.push('-crf', preset.crf.toString());
-    } else {
-      args.push('-b:v', `${bitrate}k`);
-    }
-    args.push('-preset', 'medium');
-  } else if (preset.videoCodec === 'vp9') {
-    args.push('-c:v', 'libvpx-vp9');
-    args.push('-b:v', `${bitrate}k`);
-    args.push('-tile-columns', '6');
-    args.push('-frame-parallel', '1');
-  } else if (preset.videoCodec === 'av1') {
-    args.push('-c:v', 'libaom-av1');
-    args.push('-b:v', `${bitrate}k`);
-    args.push('-cpu-used', '4'); // 0-8, higher = faster but lower quality
-  }
-
-  // Audio encoding
-  args.push('-c:a', `lib${preset.audioCodec}`);
-  args.push('-b:a', `${preset.audioBitrate}k`);
+  // Audio encoding — always AAC, 320 kbps, 48 kHz
+  const audioBitrate = preset.audioBitrate || 320;
+  args.push('-c:a', 'aac');
+  args.push('-b:a', `${audioBitrate}k`);
+  args.push('-ar', '48000');
 
   // Container-specific settings
   if (preset.container === 'mp4') {
@@ -161,7 +137,7 @@ export function buildFFmpegCommand(job: RenderJob): FFmpegCommand {
   args.push(outputPath);
 
   const fullCommand = `ffmpeg ${args.join(' ')}`;
-  const description = `Encode ${preset.width}x${preset.height} (${preset.videoCodec}/${preset.audioCodec}) with preset ${preset.name}`;
+  const description = `Encode ${preset.width}x${preset.height} @ 59.94fps (h264 CBR ${bitrate}kbps / aac 320k 48kHz) with preset ${preset.name}`;
 
   return {
     program: 'ffmpeg',

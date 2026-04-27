@@ -2,11 +2,11 @@
   "name": "version-bot",
   "version": "0.1.0",
   "description": "Cross-platform desktop app for video versioning and batch export",
-  "main": "dist/main/index.js",
+  "main": "dist/main/main/index.js",
   "homepage": "./",
   "type": "commonjs",
   "scripts": {
-    "start": "electron dist/main/index.js",
+    "start": "electron dist/main/main/index.js",
     "dev": "concurrently npm:dev:main npm:dev:renderer",
     "dev:main": "tsc -w --project src/main/tsconfig.json",
     "dev:renderer": "vite dev",
@@ -17,6 +17,8 @@
     "dist": "npm run build && electron-builder",
     "test": "vitest",
     "test:ui": "vitest --ui",
+    "test:run": "vitest --run",
+    "test:integration": "npx tsx tests/integration.ts",
     "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
@@ -40,6 +42,7 @@
     "eslint": "^8.48.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.2.2",
     "vite": "^4.4.9",
     "vitest": "^0.34.4"

@@ -4,6 +4,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import path from 'path';
 import {
   VideoMetadata,
   OutputPreset,
@@ -11,10 +12,18 @@ import {
   RenderPlan,
   FileSizeConstraint,
 } from '../models/types';
+import { hasMatchingAspectRatio } from './aspectRatio';
+
+export { hasMatchingAspectRatio } from './aspectRatio';
+
+function getBaseFilename(filePath: string): string {
+  const parsed = path.parse(filePath);
+  return parsed.name;
+}
 
 /**
  * Calculate target bitrate based on file size constraint
- * Formula: (targetSizeMB * 8 * 1000) / duration - audio_bitrate
+ * Formula: min(current video bitrate, ((targetSizeMB * 8 * 1024 * 1024) / duration) - audio_bitrate)
  */
 export function calculateAdjustedBitrate(
   constraint: FileSizeConstraint
@@ -25,9 +34,9 @@ export function calculateAdjustedBitrate(
   const totalBps = totalBits / constraint.duration;
   // Convert to kbps
   const totalKbps = Math.round(totalBps / 1000);
-  // Target is total minus audio (assume audio is 128 kbps)
-  const targetBitrate = Math.max(500, totalKbps - 128);
-  return targetBitrate;
+  // Reserve the configured audio bitrate, then only clamp video downward.
+  const maxVideoBitrate = Math.max(500, totalKbps - constraint.audioBitrate);
+  return Math.min(constraint.currentBitrate, maxVideoBitrate);
 }
 
 /**
@@ -40,13 +49,9 @@ export function isCompatibleResolution(
   outputHeight: number,
   scalingMode: string
 ): boolean {
-  const outputAR = outputWidth / outputHeight;
-  // Allow ±2% tolerance for rounding
-  const tolerance = 0.02;
-
   if (scalingMode === 'scale') {
     // Must match aspect ratio exactly
-    return Math.abs(sourceAR - outputAR) / sourceAR < tolerance;
+    return hasMatchingAspectRatio(sourceAR, outputWidth, outputHeight);
   }
   // pillarbox, letterbox, crop can use any resolution
   return true;
@@ -81,23 +86,37 @@ export function generateRenderJobs(
     // Generate output filename
     const timestamp = new Date().toISOString().split('T')[0];
     const outputFilename = filenameTemplate
+      .replace(/{source}/g, getBaseFilename(source.filePath))
+      .replace(/{presetId}/g, preset.id)
       .replace(/{preset}/g, preset.id)
       .replace(/{name}/g, preset.name)
       .replace(/{width}x{height}/g, `${preset.width}x${preset.height}`)
       .replace(/{timestamp}/g, timestamp)
       .replace(/{ext}/g, preset.container);
 
-    const outputPath = `${outputDirTemplate}/${outputFilename}`;
+    const outputPath = path.join(outputDirTemplate, outputFilename);
 
     const job: RenderJob = {
       id: jobId,
       source,
       preset,
       outputPath,
-      maxFileSizeMB: 0,
+      maxFileSizeMB: Math.max(0, preset.maxFileSizeMB ?? 0),
       status: 'pending',
       progress: 0,
     };
+
+    if (job.maxFileSizeMB > 0) {
+      const constraint: FileSizeConstraint = {
+        maxSizeMB: job.maxFileSizeMB,
+        duration: job.source.duration,
+        currentBitrate: job.preset.bitrate,
+        audioBitrate: job.preset.audioBitrate,
+        targetBitrate: 0,
+      };
+
+      job.adjustedBitrate = calculateAdjustedBitrate(constraint);
+    }
 
     return job;
   });
@@ -120,6 +139,7 @@ export function applyFileSizeConstraints(
           maxSizeMB,
           duration: job.source.duration,
           currentBitrate: job.preset.bitrate,
+          audioBitrate: job.preset.audioBitrate,
           targetBitrate: 0,
         };
 
@@ -180,6 +200,12 @@ export function calculatePlanProgress(plan: RenderPlan): number {
  * Update plan status based on job statuses
  */
 export function updatePlanStatus(plan: RenderPlan): void {
+  if (plan.jobs.length === 0) {
+    plan.status = 'pending';
+    plan.progress = 0;
+    return;
+  }
+
   const statuses = plan.jobs.map((j) => j.status);
 
   if (statuses.includes('failed')) {

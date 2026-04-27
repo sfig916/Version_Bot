@@ -10,12 +10,14 @@ interface VideoSelectorProps {
   onVideoSelected: (metadata: VideoMetadata) => void;
   onError: (error: string) => void;
   error: string | null;
+  onManagePresets: () => void;
 }
 
 export default function VideoSelector({
   onVideoSelected,
   onError,
   error,
+  onManagePresets,
 }: VideoSelectorProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -63,6 +65,14 @@ export default function VideoSelector({
           disabled={isLoading}
         >
           {isLoading ? 'Analyzing...' : 'Select Video File'}
+        </button>
+
+        <button
+          className="btn btn-secondary"
+          onClick={onManagePresets}
+          disabled={isLoading}
+        >
+          Manage Presets
         </button>
 
         {selectedFile && (

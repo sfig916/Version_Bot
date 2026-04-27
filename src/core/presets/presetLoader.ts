@@ -14,20 +14,32 @@ const slateConfigSchema = z
   .object({
     enabled: z.boolean().default(false),
     assetPath: z.string().optional(),
-    duration: z.number().positive(),
-  })
-  .strict();
+    assetRef: z
+      .object({
+        key: z.string().min(1),
+        source: z.enum(['mediasilo', 'local']),
+        mediaSiloId: z.string().optional(),
+        fallbackRelativePath: z.string().optional(),
+      })
+      .optional(),
+    duration: z.number().positive().optional(),
+  });
 
 const overlayConfigSchema = z
   .object({
     enabled: z.boolean().default(false),
     assetPath: z.string().optional(),
+    assetRef: z
+      .object({
+        key: z.string().min(1),
+        source: z.enum(['mediasilo', 'local']),
+        mediaSiloId: z.string().optional(),
+        fallbackRelativePath: z.string().optional(),
+      })
+      .optional(),
     position: z.enum(['tl', 'tr', 'bl', 'br']),
-    widthPercent: z.number().min(1).max(100).default(20),
-    duration: z.number().optional(),
-    timing: z.enum(['start', 'end', 'full']).default('start'),
-  })
-  .strict();
+    duration: z.number().positive().default(4),
+  });
 
 const outputPresetSchema = z
   .object({
@@ -42,11 +54,11 @@ const outputPresetSchema = z
     audioBitrate: z.number().positive(),
     audioCodec: z.enum(['aac', 'libopus', 'libvorbis', 'mp3']),
     container: z.enum(['mp4', 'webm', 'mov', 'mkv']),
+    maxFileSizeMB: z.number().min(0).optional(),
     introSlate: slateConfigSchema.optional(),
     outroSlate: slateConfigSchema.optional(),
     overlay: overlayConfigSchema.optional(),
-  })
-  .strict();
+  });
 
 const presetsFileSchema = z.object({
   presets: z.array(outputPresetSchema),
@@ -79,9 +91,42 @@ export async function loadPresetsFromFile(
     throw new Error(`Unsupported preset file format: ${extension}`);
   }
 
-  // Validate schema
-  const validated = presetsFileSchema.parse(data);
-  return validated.presets;
+  const topLevel = z
+    .object({
+      presets: z.array(z.unknown()),
+      metadata: z
+        .object({
+          version: z.string(),
+          description: z.string().optional(),
+        })
+        .optional(),
+    })
+    .parse(data);
+
+  const validPresets: OutputPreset[] = [];
+  const invalidSummaries: string[] = [];
+
+  topLevel.presets.forEach((rawPreset, index) => {
+    const parsedPreset = outputPresetSchema.safeParse(rawPreset);
+    if (parsedPreset.success) {
+      validPresets.push(parsedPreset.data);
+      return;
+    }
+
+    invalidSummaries.push(`index ${index}: ${parsedPreset.error.issues[0]?.message || 'invalid preset'}`);
+  });
+
+  if (invalidSummaries.length > 0) {
+    console.warn(
+      `[presetLoader] Skipped ${invalidSummaries.length} invalid preset(s) from ${filePath}: ${invalidSummaries.join('; ')}`
+    );
+  }
+
+  if (topLevel.presets.length > 0 && validPresets.length === 0) {
+    throw new Error(`All presets in ${filePath} are invalid`);
+  }
+
+  return validPresets;
 }
 
 /**
@@ -168,61 +213,52 @@ export async function loadPresetsFromDirectory(
 export function createExamplePresets(): OutputPreset[] {
   return [
     {
-      id: 'hd_1080p',
-      name: 'HD 1080p',
+      id: 'landscape_16_9',
+      name: '16:9',
       width: 1920,
       height: 1080,
-      scalingMode: 'letterbox',
-      bitrate: 5000,
-      videoCodec: 'h264',
-      crf: 23,
-      audioBitrate: 128,
-      audioCodec: 'aac',
-      container: 'mp4',
-    },
-    {
-      id: 'hd_720p',
-      name: 'HD 720p',
-      width: 1280,
-      height: 720,
-      scalingMode: 'letterbox',
-      bitrate: 2500,
-      videoCodec: 'h264',
-      crf: 23,
-      audioBitrate: 128,
-      audioCodec: 'aac',
-      container: 'mp4',
-    },
-    {
-      id: '4k_2160p',
-      name: '4K 2160p',
-      width: 3840,
-      height: 2160,
       scalingMode: 'scale',
-      bitrate: 15000,
-      videoCodec: 'h265',
-      crf: 23,
-      audioBitrate: 192,
+      bitrate: 50000,
+      videoCodec: 'h264',
+      audioBitrate: 320,
       audioCodec: 'aac',
       container: 'mp4',
     },
     {
-      id: 'web_vp9',
-      name: 'Web VP9',
-      width: 1280,
-      height: 720,
-      scalingMode: 'letterbox',
-      bitrate: 2000,
-      videoCodec: 'vp9',
-      audioBitrate: 128,
-      audioCodec: 'libopus',
-      container: 'webm',
-      overlay: {
-        enabled: true,
-        position: 'br',
-        widthPercent: 15,
-        timing: 'full',
-      },
+      id: 'vertical_9_16',
+      name: '9:16',
+      width: 1080,
+      height: 1920,
+      scalingMode: 'scale',
+      bitrate: 50000,
+      videoCodec: 'h264',
+      audioBitrate: 320,
+      audioCodec: 'aac',
+      container: 'mp4',
+    },
+    {
+      id: 'square_1_1',
+      name: '1:1',
+      width: 1080,
+      height: 1080,
+      scalingMode: 'scale',
+      bitrate: 50000,
+      videoCodec: 'h264',
+      audioBitrate: 320,
+      audioCodec: 'aac',
+      container: 'mp4',
+    },
+    {
+      id: 'portrait_4_5',
+      name: '4:5',
+      width: 1080,
+      height: 1350,
+      scalingMode: 'scale',
+      bitrate: 50000,
+      videoCodec: 'h264',
+      audioBitrate: 320,
+      audioCodec: 'aac',
+      container: 'mp4',
     },
   ];
 }

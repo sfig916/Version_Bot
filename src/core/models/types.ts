@@ -27,19 +27,28 @@ export interface VideoMetadata {
 
 export type ScalingMode = 'scale' | 'pillarbox' | 'letterbox' | 'crop';
 
+export interface AssetReference {
+  /** Stable cross-team key for this asset (e.g. brand_intro_v2) */
+  key: string;
+  /** Where the canonical asset is expected to come from */
+  source: 'mediasilo' | 'local';
+  /** Optional MediaSilo identifier for team users */
+  mediaSiloId?: string;
+  /** Optional repo-relative fallback path when available */
+  fallbackRelativePath?: string;
+}
+
 export interface OverlayConfig {
   /** Whether to add an overlay */
   enabled: boolean;
-  /** Path to overlay image/video */
+  /** Path to overlay image/video (3840x2160 with transparency, pre-positioned) */
   assetPath?: string;
-  /** Corner position: tl, tr, bl, br */
+  /** Shared reference for cross-user resolution */
+  assetRef?: AssetReference;
+  /** Corner position: identifies which overlay file to use (tl, tr, bl, br) */
   position: 'tl' | 'tr' | 'bl' | 'br';
-  /** Overlay width as percentage of output */
-  widthPercent: number;
-  /** Overlay duration in seconds (for video overlays) */
-  duration?: number;
-  /** When to place overlay: start, end, or full */
-  timing: 'start' | 'end' | 'full';
+  /** Duration overlay appears on screen in seconds (default 4) */
+  duration: number;
 }
 
 export interface SlateConfig {
@@ -47,8 +56,10 @@ export interface SlateConfig {
   enabled: boolean;
   /** Path to slate video/image */
   assetPath?: string;
-  /** Duration if it's a static image */
-  duration: number;
+  /** Shared reference for cross-user resolution */
+  assetRef?: AssetReference;
+  /** Duration if it's a static image (auto-detected at render time) */
+  duration?: number;
 }
 
 export interface OutputPreset {
@@ -74,6 +85,8 @@ export interface OutputPreset {
   audioCodec: 'aac' | 'libopus' | 'libvorbis' | 'mp3';
   /** Container format (mp4, webm, mov) */
   container: 'mp4' | 'webm' | 'mov' | 'mkv';
+  /** Default max output size for this preset in MB (0 = no limit) */
+  maxFileSizeMB?: number;
   /** Intro slate configuration */
   introSlate?: SlateConfig;
   /** Outro slate configuration */
@@ -148,6 +161,8 @@ export interface FileSizeConstraint {
   duration: number;
   /** Current bitrate in kbps */
   currentBitrate: number;
+  /** Audio bitrate in kbps reserved from the total budget */
+  audioBitrate: number;
   /** Target bitrate in kbps (calculated) */
   targetBitrate: number;
 }

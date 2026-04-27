@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   createRenderPlan,
   calculateAdjustedBitrate,
+  hasMatchingAspectRatio,
   isCompatibleResolution,
   calculatePlanProgress,
   updatePlanStatus,
@@ -45,12 +46,13 @@ describe('Render Plan Generator', () => {
         maxSizeMB: 100,
         duration: 120,
         currentBitrate: 5000,
+        audioBitrate: 128,
         targetBitrate: 0,
       };
 
       const bitrate = calculateAdjustedBitrate(constraint);
       expect(bitrate).toBeGreaterThan(0);
-      expect(bitrate).toBe(6863);
+      expect(bitrate).toBe(5000);
     });
 
     it('should enforce minimum bitrate of 500 kbps', () => {
@@ -58,15 +60,34 @@ describe('Render Plan Generator', () => {
         maxSizeMB: 1, // Very small
         duration: 3600, // 1 hour
         currentBitrate: 5000,
+        audioBitrate: 320,
         targetBitrate: 0,
       };
 
       const bitrate = calculateAdjustedBitrate(constraint);
       expect(bitrate).toBeGreaterThanOrEqual(500);
+      expect(bitrate).toBe(500);
+    });
+
+    it('should reserve the configured audio bitrate from the size budget', () => {
+      const bitrate = calculateAdjustedBitrate({
+        maxSizeMB: 100,
+        duration: 120,
+        currentBitrate: 10000,
+        audioBitrate: 320,
+        targetBitrate: 0,
+      });
+
+      expect(bitrate).toBe(6671);
     });
   });
 
   describe('isCompatibleResolution', () => {
+    it('should detect matching aspect ratios within tolerance', () => {
+      expect(hasMatchingAspectRatio(16 / 9, 3840, 2160)).toBe(true);
+      expect(hasMatchingAspectRatio(16 / 9, 1080, 1920)).toBe(false);
+    });
+
     it('should accept matching aspect ratios for scale mode', () => {
       const sourceAR = 16 / 9; // 1.777...
       const result = isCompatibleResolution(
@@ -168,6 +189,14 @@ describe('Render Plan Generator', () => {
   });
 
   describe('updatePlanStatus', () => {
+    it('should keep empty plan in pending status', () => {
+      const plan = createRenderPlan(mockVideoMetadata, [], '/output');
+
+      updatePlanStatus(plan);
+      expect(plan.status).toBe('pending');
+      expect(plan.progress).toBe(0);
+    });
+
     it('should mark plan as completed when all jobs completed', () => {
       const plan = createRenderPlan(
         mockVideoMetadata,
