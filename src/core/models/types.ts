@@ -23,6 +23,8 @@ export interface VideoMetadata {
   audioCodec: string;
   /** Audio sample rate in Hz */
   sampleRate: number;
+  /** Whether the media has an audio stream */
+  hasAudioTrack?: boolean;
 }
 
 export type ScalingMode = 'scale' | 'pillarbox' | 'letterbox' | 'crop';
@@ -45,8 +47,6 @@ export interface OverlayConfig {
   assetPath?: string;
   /** Shared reference for cross-user resolution */
   assetRef?: AssetReference;
-  /** Corner position: identifies which overlay file to use (tl, tr, bl, br) */
-  position: 'tl' | 'tr' | 'bl' | 'br';
   /** Duration overlay appears on screen in seconds (default 4) */
   duration: number;
 }
@@ -60,6 +60,8 @@ export interface SlateConfig {
   assetRef?: AssetReference;
   /** Duration if it's a static image (auto-detected at render time) */
   duration?: number;
+  /** Whether this slate has an audio stream (used for safe concat fallback) */
+  hasAudio?: boolean;
 }
 
 export interface OutputPreset {

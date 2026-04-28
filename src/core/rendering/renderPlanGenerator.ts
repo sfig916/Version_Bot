@@ -21,6 +21,55 @@ function getBaseFilename(filePath: string): string {
   return parsed.name;
 }
 
+function sanitizeOutputFilename(rawFilename: string, fallbackExt: string): string {
+  const windowsReservedNames = new Set([
+    'CON',
+    'PRN',
+    'AUX',
+    'NUL',
+    'COM1',
+    'COM2',
+    'COM3',
+    'COM4',
+    'COM5',
+    'COM6',
+    'COM7',
+    'COM8',
+    'COM9',
+    'LPT1',
+    'LPT2',
+    'LPT3',
+    'LPT4',
+    'LPT5',
+    'LPT6',
+    'LPT7',
+    'LPT8',
+    'LPT9',
+  ]);
+
+  const parsed = path.parse(rawFilename);
+  const extCandidate = parsed.ext || `.${fallbackExt}`;
+
+  const safeExt =
+    extCandidate.replace(/[^.a-zA-Z0-9_-]/g, '').replace(/^\.+/, '.') ||
+    `.${fallbackExt}`;
+
+  let safeBase = (parsed.name || 'output')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/[. ]+$/g, '')
+    .trim();
+
+  if (!safeBase) {
+    safeBase = 'output';
+  }
+
+  if (windowsReservedNames.has(safeBase.toUpperCase())) {
+    safeBase = `${safeBase}_file`;
+  }
+
+  return `${safeBase}${safeExt}`;
+}
+
 /**
  * Calculate target bitrate based on file size constraint
  * Formula: min(current video bitrate, ((targetSizeMB * 8 * 1024 * 1024) / duration) - audio_bitrate)
@@ -94,7 +143,12 @@ export function generateRenderJobs(
       .replace(/{timestamp}/g, timestamp)
       .replace(/{ext}/g, preset.container);
 
-    const outputPath = path.join(outputDirTemplate, outputFilename);
+    const safeOutputFilename = sanitizeOutputFilename(
+      outputFilename,
+      preset.container
+    );
+
+    const outputPath = path.join(outputDirTemplate, safeOutputFilename);
 
     const job: RenderJob = {
       id: jobId,

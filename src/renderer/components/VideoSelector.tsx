@@ -4,13 +4,15 @@
 
 import React, { useState } from 'react';
 import { VideoMetadata } from '../../core/models/types';
+import { AppError } from '../utils/errorHandler';
 import './VideoSelector.css';
 
 interface VideoSelectorProps {
   onVideoSelected: (metadata: VideoMetadata) => void;
   onError: (error: string) => void;
-  error: string | null;
+  error: AppError | null;
   onManagePresets: () => void;
+  onManageAssets: () => void;
 }
 
 export default function VideoSelector({
@@ -18,6 +20,7 @@ export default function VideoSelector({
   onError,
   error,
   onManagePresets,
+  onManageAssets,
 }: VideoSelectorProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -28,7 +31,10 @@ export default function VideoSelector({
     onError('');
 
     try {
+      console.log('[VideoSelector] Starting file selection...');
       const filePath = await window.versionBotAPI.selectVideoFile();
+      console.log('[VideoSelector] File path selected:', filePath);
+      
       if (!filePath) {
         setIsLoading(false);
         return;
@@ -42,13 +48,16 @@ export default function VideoSelector({
       if (result.success && result.data) {
         onVideoSelected(result.data);
       } else {
-        onError(result.error || 'Failed to probe video');
+        const errorMsg = result.error || 'Failed to probe video';
+        console.error('[VideoSelector] Probe failed:', errorMsg);
+        onError(errorMsg);
       }
     } catch (error) {
       setIsLoading(false);
-      onError(
-        error instanceof Error ? error.message : 'Unknown error occurred'
-      );
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      console.error('[VideoSelector] Error caught:', { message: errorMsg, stack: errorStack, fullError: error });
+      onError(errorMsg);
     }
   };
 
@@ -67,22 +76,8 @@ export default function VideoSelector({
           {isLoading ? 'Analyzing...' : 'Select Video File'}
         </button>
 
-        <button
-          className="btn btn-secondary"
-          onClick={onManagePresets}
-          disabled={isLoading}
-        >
-          Manage Presets
-        </button>
-
         {selectedFile && (
           <p className="selected-file">{selectedFile}</p>
-        )}
-
-        {error && (
-          <div className="error-message">
-            <strong>Error:</strong> {error}
-          </div>
         )}
       </div>
     </div>

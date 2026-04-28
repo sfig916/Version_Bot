@@ -39,19 +39,54 @@ body {
   background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
   color: white;
   padding: 2rem;
-  text-align: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.app-header h1 {
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header-title {
+  flex: 1;
+  text-align: left;
+}
+
+.header-title h1 {
   font-size: 2rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
 }
 
-.app-header p {
+.header-title p {
   font-size: 1rem;
   opacity: 0.9;
+}
+
+.header-nav {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.btn-nav {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.95rem;
+  padding: 0.65rem 1.25rem;
+}
+
+.btn-nav:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
 }
 
 .app-main {
@@ -291,4 +326,40 @@ input[type='number']:disabled {
 
 .info-box p:last-child {
   margin-bottom: 0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .app-header {
+    padding: 1.5rem;
+  }
+
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.5rem;
+  }
+
+  .header-title h1 {
+    font-size: 1.5rem;
+  }
+
+  .header-title p {
+    font-size: 0.875rem;
+  }
+
+  .header-nav {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .btn-nav {
+    flex: 1;
+    min-width: 150px;
+    justify-content: center;
+  }
+
+  .app-main {
+    padding: 1rem;
+  }
 }

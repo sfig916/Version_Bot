@@ -185,6 +185,24 @@
   gap: 0.4rem;
 }
 
+.duration-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.duration-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.duration-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 .local-override-row {
   display: flex;
   align-items: center;

@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { OutputPreset, AssetReference } from '../../core/models/types';
+import { OutputPreset } from '../../core/models/types';
 import './PresetManager.css';
 
 interface SlateAssetOption {
@@ -20,7 +20,6 @@ interface OverlayAssetOption {
   id: string;
   name: string;
   key: string;
-  position: 'tl' | 'tr' | 'bl' | 'br';
   source: 'local' | 'mediasilo';
   mediaSiloId?: string;
   path?: string;
@@ -54,21 +53,11 @@ interface Draft {
   audioBitrate: string;
   maxFileSizeMB: string;
   introEnabled: boolean;
-  introAssetKey: string;
-  introAssetSource: 'local' | 'mediasilo';
-  introMediaSiloId: string;
-  introPath: string;
+  introLibraryId: string;
   outroEnabled: boolean;
-  outroAssetKey: string;
-  outroAssetSource: 'local' | 'mediasilo';
-  outroMediaSiloId: string;
-  outroPath: string;
+  outroLibraryId: string;
   overlayEnabled: boolean;
-  overlayAssetKey: string;
-  overlayAssetSource: 'local' | 'mediasilo';
-  overlayMediaSiloId: string;
-  overlayPath: string;
-  overlayPosition: 'tl' | 'tr' | 'bl' | 'br';
+  overlayLibraryId: string;
   overlayDuration: string;
 }
 
@@ -81,21 +70,11 @@ const BLANK_DRAFT: Draft = {
   audioBitrate: '320',
   maxFileSizeMB: '',
   introEnabled: false,
-  introAssetKey: '',
-  introAssetSource: 'local',
-  introMediaSiloId: '',
-  introPath: '',
+  introLibraryId: '',
   outroEnabled: false,
-  outroAssetKey: '',
-  outroAssetSource: 'local',
-  outroMediaSiloId: '',
-  outroPath: '',
+  outroLibraryId: '',
   overlayEnabled: false,
-  overlayAssetKey: '',
-  overlayAssetSource: 'local',
-  overlayMediaSiloId: '',
-  overlayPath: '',
-  overlayPosition: 'br',
+  overlayLibraryId: '',
   overlayDuration: '4',
 };
 
@@ -135,6 +114,10 @@ function parseVideoBitrateMbps(value: string): number {
   return Math.round(Number(value) * 1000);
 }
 
+function toDurationParts(durationSeconds: number): string {
+  return String(Math.max(0, durationSeconds) || 4);
+}
+
 function normalizeLibItem(item: Partial<SlateAssetOption>): SlateAssetOption {
   const name = item.name?.trim() || 'Untitled';
   const key = item.key?.trim() || toKey(name) || `asset_${Date.now()}`;
@@ -153,13 +136,11 @@ function normalizeOverlayItem(item: Partial<OverlayAssetOption>): OverlayAssetOp
   const name = item.name?.trim() || 'Untitled Overlay';
   const path = item.path?.trim();
   const key = item.key?.trim() || toKey(name) || `overlay_${Date.now()}`;
-  const position = item.position || 'br';
 
   return {
     id: item.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     name,
     key,
-    position,
     source: item.source === 'mediasilo' ? 'mediasilo' : 'local',
     mediaSiloId: item.mediaSiloId,
     path,
@@ -178,38 +159,51 @@ export default function PresetManager({
   const [prependLib, setPrependLib] = useState<SlateAssetOption[]>([]);
   const [appendLib, setAppendLib] = useState<SlateAssetOption[]>([]);
   const [overlayLib, setOverlayLib] = useState<OverlayAssetOption[]>([]);
-  const [overrides, setOverrides] = useState<Record<string, string>>({});
   const hasMaxFileSize = Number(draft.maxFileSizeMB || 0) > 0;
 
-  useEffect(() => {
-    try {
-      const pr = window.localStorage.getItem(PREPEND_LIBRARY_KEY);
-      const ar = window.localStorage.getItem(APPEND_LIBRARY_KEY);
-      const or = window.localStorage.getItem(OVERLAY_LIBRARY_KEY);
-      if (pr) setPrependLib((JSON.parse(pr) as Partial<SlateAssetOption>[]).map(normalizeLibItem));
-      if (ar) setAppendLib((JSON.parse(ar) as Partial<SlateAssetOption>[]).map(normalizeLibItem));
-      if (or) setOverlayLib((JSON.parse(or) as Partial<OverlayAssetOption>[]).map(normalizeOverlayItem));
-    } catch { /* ignore */ }
+  const getSlateDisplayName = (
+    slate: OutputPreset['introSlate'],
+    lib: SlateAssetOption[]
+  ): string => {
+    if (!slate?.enabled) return 'None';
+    if (slate.assetRef?.key) {
+      const byKey = lib.find((a) => a.key === slate.assetRef?.key);
+      if (byKey) return byKey.name;
+    }
+    if (slate.assetPath) {
+      const byPath = lib.find((a) => a.path === slate.assetPath);
+      if (byPath) return byPath.name;
+      return getBasename(slate.assetPath);
+    }
+    return slate.assetRef?.key ? slate.assetRef.key : 'Not selected';
+  };
 
-    window.versionBotAPI.getAssetOverrides().then((r) => {
-      if (r.success && r.data) setOverrides(r.data);
+  const getOverlayDisplayName = (overlay: OutputPreset['overlay']): string => {
+    if (!overlay?.enabled) return 'None';
+    const duration = overlay.duration && overlay.duration > 0 ? ` (${overlay.duration}s)` : '';
+    if (overlay.assetRef?.key) {
+      const byKey = overlayLib.find((a) => a.key === overlay.assetRef?.key);
+      if (byKey) return `${byKey.name}${duration}`;
+    }
+    if (overlay.assetPath) {
+      const byPath = overlayLib.find((a) => a.path === overlay.assetPath);
+      if (byPath) return `${byPath.name}${duration}`;
+      return `${getBasename(overlay.assetPath)}${duration}`;
+    }
+    return overlay.assetRef?.key ? `${overlay.assetRef.key}${duration}` : 'Not selected';
+  };
+
+  useEffect(() => {
+    Promise.all([
+      window.versionBotAPI.getAssetLibrary(PREPEND_LIBRARY_KEY),
+      window.versionBotAPI.getAssetLibrary(APPEND_LIBRARY_KEY),
+      window.versionBotAPI.getAssetLibrary(OVERLAY_LIBRARY_KEY),
+    ]).then(([pr, ar, or_]) => {
+      if (pr.success && pr.data) setPrependLib((pr.data as Partial<SlateAssetOption>[]).map(normalizeLibItem));
+      if (ar.success && ar.data) setAppendLib((ar.data as Partial<SlateAssetOption>[]).map(normalizeLibItem));
+      if (or_.success && or_.data) setOverlayLib((or_.data as Partial<OverlayAssetOption>[]).map(normalizeOverlayItem));
     }).catch(() => {});
   }, []);
-
-  const persistPrepend = (next: SlateAssetOption[]) => {
-    setPrependLib(next);
-    window.localStorage.setItem(PREPEND_LIBRARY_KEY, JSON.stringify(next));
-  };
-
-  const persistAppend = (next: SlateAssetOption[]) => {
-    setAppendLib(next);
-    window.localStorage.setItem(APPEND_LIBRARY_KEY, JSON.stringify(next));
-  };
-
-  const persistOverlay = (next: OverlayAssetOption[]) => {
-    setOverlayLib(next);
-    window.localStorage.setItem(OVERLAY_LIBRARY_KEY, JSON.stringify(next));
-  };
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -231,179 +225,6 @@ export default function PresetManager({
     if (opt) setDraft((prev) => ({ ...prev, width: String(opt.width), height: String(opt.height) }));
   };
 
-  const detectDuration = async (path: string) => {
-    try {
-      const r = await window.versionBotAPI.probeVideo(path);
-      if (r.success && r.data?.duration) return Math.max(1, r.data.duration);
-    } catch { /* fall through */ }
-    return 3;
-  };
-
-  const addFileToLib = async (type: 'intro' | 'outro') => {
-    const path = await window.versionBotAPI.selectAssetFile('video');
-    if (!path) return;
-    const defaultName = getBasename(path);
-    const name = window.prompt('Asset name', defaultName)?.trim() || defaultName;
-    const key = window.prompt('Shared asset key', toKey(name))?.trim() || toKey(name);
-    const duration = await detectDuration(path);
-    const item: SlateAssetOption = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name, key, source: 'local', path, duration,
-    };
-    if (type === 'intro') {
-      persistPrepend([...prependLib, item]);
-      setDraft((p) => ({ ...p, introEnabled: true, introAssetKey: key, introAssetSource: 'local', introMediaSiloId: '', introPath: path }));
-    } else {
-      persistAppend([...appendLib, item]);
-      setDraft((p) => ({ ...p, outroEnabled: true, outroAssetKey: key, outroAssetSource: 'local', outroMediaSiloId: '', outroPath: path }));
-    }
-  };
-
-  const addMediaSiloToLib = (type: 'intro' | 'outro') => {
-    const name = window.prompt('MediaSilo asset name')?.trim();
-    if (!name) return;
-    const key = window.prompt('Shared asset key', toKey(name))?.trim() || toKey(name);
-    const mediaSiloId = window.prompt('MediaSilo asset ID (optional)')?.trim() || '';
-    const item: SlateAssetOption = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name, key, source: 'mediasilo', mediaSiloId, duration: 3,
-    };
-    if (type === 'intro') {
-      persistPrepend([...prependLib, item]);
-      setDraft((p) => ({ ...p, introEnabled: true, introAssetKey: key, introAssetSource: 'mediasilo', introMediaSiloId: mediaSiloId, introPath: '' }));
-    } else {
-      persistAppend([...appendLib, item]);
-      setDraft((p) => ({ ...p, outroEnabled: true, outroAssetKey: key, outroAssetSource: 'mediasilo', outroMediaSiloId: mediaSiloId, outroPath: '' }));
-    }
-  };
-
-  const selectFromLib = (type: 'intro' | 'outro', assetId: string) => {
-    const lib = type === 'intro' ? prependLib : appendLib;
-    const a = lib.find((x) => x.id === assetId);
-    if (!a) return;
-    if (type === 'intro') {
-      setDraft((p) => ({ ...p, introEnabled: true, introAssetKey: a.key, introAssetSource: a.source, introMediaSiloId: a.mediaSiloId || '', introPath: a.path || '' }));
-    } else {
-      setDraft((p) => ({ ...p, outroEnabled: true, outroAssetKey: a.key, outroAssetSource: a.source, outroMediaSiloId: a.mediaSiloId || '', outroPath: a.path || '' }));
-    }
-  };
-
-  const setLocalOverride = async (type: 'intro' | 'outro' | 'overlay') => {
-    let key = '';
-    if (type === 'intro') {
-      key = draft.introAssetKey.trim();
-    } else if (type === 'outro') {
-      key = draft.outroAssetKey.trim();
-    } else {
-      key = draft.overlayAssetKey.trim();
-    }
-    if (!key) { alert('Set a shared asset key first'); return; }
-    
-    const fileType = type === 'overlay' ? 'image' : 'video';
-    const path = await window.versionBotAPI.selectAssetFile(fileType);
-    if (!path) return;
-    
-    const result = await window.versionBotAPI.setAssetOverride(key, path);
-    if (result.success && result.data) setOverrides(result.data);
-    
-    if (type === 'intro') setDraft((p) => ({ ...p, introPath: path }));
-    else if (type === 'outro') setDraft((p) => ({ ...p, outroPath: path }));
-    else setDraft((p) => ({ ...p, overlayPath: path }));
-  };
-
-  const addOverlayToLibrary = async (position: 'tl' | 'tr' | 'bl' | 'br') => {
-    const selectedPath = await window.versionBotAPI.selectAssetFile('image');
-    if (!selectedPath) return;
-
-    const positionName = {
-      tl: 'Top Left',
-      tr: 'Top Right',
-      bl: 'Bottom Left',
-      br: 'Bottom Right',
-    }[position];
-
-    const suggestedName = `ESRB - ${positionName}`;
-    const chosenName = window.prompt('Overlay name', suggestedName)?.trim() || suggestedName;
-    const suggestedKey = toKey(chosenName) || toKey(positionName);
-    const chosenKey = window.prompt('Shared asset key', suggestedKey)?.trim() || suggestedKey;
-
-    const item: OverlayAssetOption = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name: chosenName,
-      key: chosenKey,
-      position,
-      source: 'local',
-      path: selectedPath,
-    };
-
-    const next = [...overlayLib, item];
-    persistOverlay(next);
-    setDraft((p) => ({
-      ...p,
-      overlayEnabled: true,
-      overlayAssetKey: item.key,
-      overlayAssetSource: item.source,
-      overlayMediaSiloId: '',
-      overlayPath: item.path,
-      overlayPosition: item.position,
-    }));
-  };
-
-  const addMediaSiloOverlayToLibrary = (position: 'tl' | 'tr' | 'bl' | 'br') => {
-    const positionName = {
-      tl: 'Top Left',
-      tr: 'Top Right',
-      bl: 'Bottom Left',
-      br: 'Bottom Right',
-    }[position];
-
-    const chosenName = window.prompt('Overlay name')?.trim() || `ESRB - ${positionName}`;
-    const suggestedKey = toKey(chosenName);
-    const chosenKey = window.prompt('Shared asset key', suggestedKey)?.trim() || suggestedKey;
-    const mediaSiloId = window.prompt('MediaSilo asset ID (optional)')?.trim() || '';
-
-    const item: OverlayAssetOption = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name: chosenName,
-      key: chosenKey,
-      position,
-      source: 'mediasilo',
-      mediaSiloId,
-    };
-
-    const next = [...overlayLib, item];
-    persistOverlay(next);
-    setDraft((p) => ({
-      ...p,
-      overlayEnabled: true,
-      overlayAssetKey: item.key,
-      overlayAssetSource: item.source,
-      overlayMediaSiloId: item.mediaSiloId || '',
-      overlayPath: '',
-      overlayPosition: item.position,
-    }));
-  };
-
-  const selectOverlayFromLibrary = (overlayId: string) => {
-    const selectedOverlay = overlayLib.find((item) => item.id === overlayId);
-    if (!selectedOverlay) return;
-
-    setDraft((p) => ({
-      ...p,
-      overlayEnabled: true,
-      overlayAssetKey: selectedOverlay.key,
-      overlayAssetSource: selectedOverlay.source,
-      overlayMediaSiloId: selectedOverlay.mediaSiloId || '',
-      overlayPath: selectedOverlay.path || '',
-      overlayPosition: selectedOverlay.position,
-    }));
-  };
-
-  const makeAssetRef = (key: string, source: 'local' | 'mediasilo', mediaSiloId?: string): AssetReference | undefined => {
-    const k = key.trim();
-    if (!k) return undefined;
-    return { key: k, source, mediaSiloId: mediaSiloId?.trim() || undefined };
-  };
 
   const openNew = () => {
     setEditingId(null);
@@ -412,6 +233,11 @@ export default function PresetManager({
   };
 
   const openEdit = (preset: OutputPreset) => {
+    const findSlateId = (lib: SlateAssetOption[], key?: string, path?: string) =>
+      lib.find((a) => key && a.key === key)?.id ||
+      lib.find((a) => path && a.path === path)?.id ||
+      '';
+
     setEditingId(preset.id);
     setShowForm(true);
     setDraft({
@@ -423,22 +249,15 @@ export default function PresetManager({
       audioBitrate: String(preset.audioBitrate || 320),
       maxFileSizeMB: preset.maxFileSizeMB && preset.maxFileSizeMB > 0 ? String(preset.maxFileSizeMB) : '',
       introEnabled: !!preset.introSlate?.enabled,
-      introAssetKey: preset.introSlate?.assetRef?.key || toKey(getBasename(preset.introSlate?.assetPath)) || '',
-      introAssetSource: preset.introSlate?.assetRef?.source || 'local',
-      introMediaSiloId: preset.introSlate?.assetRef?.mediaSiloId || '',
-      introPath: preset.introSlate?.assetPath || '',
+      introLibraryId: findSlateId(prependLib, preset.introSlate?.assetRef?.key, preset.introSlate?.assetPath),
       outroEnabled: !!preset.outroSlate?.enabled,
-      outroAssetKey: preset.outroSlate?.assetRef?.key || toKey(getBasename(preset.outroSlate?.assetPath)) || '',
-      outroAssetSource: preset.outroSlate?.assetRef?.source || 'local',
-      outroMediaSiloId: preset.outroSlate?.assetRef?.mediaSiloId || '',
-      outroPath: preset.outroSlate?.assetPath || '',
+      outroLibraryId: findSlateId(appendLib, preset.outroSlate?.assetRef?.key, preset.outroSlate?.assetPath),
       overlayEnabled: !!preset.overlay?.enabled,
-      overlayAssetKey: preset.overlay?.assetRef?.key || toKey(getBasename(preset.overlay?.assetPath)) || '',
-      overlayAssetSource: preset.overlay?.assetRef?.source || 'local',
-      overlayMediaSiloId: preset.overlay?.assetRef?.mediaSiloId || '',
-      overlayPath: preset.overlay?.assetPath || '',
-      overlayPosition: preset.overlay?.position || 'br',
-      overlayDuration: String(preset.overlay?.duration || 4),
+      overlayLibraryId:
+        overlayLib.find((a) => preset.overlay?.assetRef?.key && a.key === preset.overlay.assetRef.key)?.id ||
+        overlayLib.find((a) => preset.overlay?.assetPath && a.path === preset.overlay.assetPath)?.id ||
+        '',
+      overlayDuration: toDurationParts(preset.overlay?.duration || 4),
     });
   };
 
@@ -515,6 +334,10 @@ export default function PresetManager({
     }
     const maxFileSizeMB = draft.maxFileSizeMB ? Number(draft.maxFileSizeMB) : 0;
 
+    const introItem = prependLib.find((a) => a.id === draft.introLibraryId);
+    const outroItem = appendLib.find((a) => a.id === draft.outroLibraryId);
+    const overlayItem = overlayLib.find((a) => a.id === draft.overlayLibraryId);
+
     const preset: OutputPreset = {
       id: generatedPresetId,
       name: draft.name.trim(),
@@ -528,23 +351,19 @@ export default function PresetManager({
       maxFileSizeMB,
       introSlate: draft.introEnabled ? {
         enabled: true,
-        assetPath: draft.introAssetSource === 'local' ? draft.introPath.trim() || undefined : undefined,
-        assetRef: makeAssetRef(draft.introAssetKey, draft.introAssetSource, draft.introMediaSiloId),
+        assetPath: introItem?.source === 'local' ? introItem.path : undefined,
+        assetRef: introItem ? { key: introItem.key, source: introItem.source, mediaSiloId: introItem.mediaSiloId } : undefined,
       } : undefined,
       outroSlate: draft.outroEnabled ? {
         enabled: true,
-        assetPath: draft.outroAssetSource === 'local' ? draft.outroPath.trim() || undefined : undefined,
-        assetRef: makeAssetRef(draft.outroAssetKey, draft.outroAssetSource, draft.outroMediaSiloId),
+        assetPath: outroItem?.source === 'local' ? outroItem.path : undefined,
+        assetRef: outroItem ? { key: outroItem.key, source: outroItem.source, mediaSiloId: outroItem.mediaSiloId } : undefined,
       } : undefined,
       overlay: draft.overlayEnabled ? {
         enabled: true,
-        assetPath:
-          draft.overlayAssetSource === 'local'
-            ? draft.overlayPath.trim() || undefined
-            : undefined,
-        assetRef: makeAssetRef(draft.overlayAssetKey, draft.overlayAssetSource, draft.overlayMediaSiloId),
-        position: draft.overlayPosition,
-        duration: Number(draft.overlayDuration) || 4,
+        assetPath: overlayItem?.source === 'local' ? overlayItem.path : undefined,
+        assetRef: overlayItem ? { key: overlayItem.key, source: overlayItem.source, mediaSiloId: overlayItem.mediaSiloId } : undefined,
+        duration: Math.max(0, parseFloat(draft.overlayDuration) || 4),
       } : undefined,
     };
 
@@ -563,31 +382,37 @@ export default function PresetManager({
       <table className="pm-table">
         <thead>
           <tr>
-            <th>Name</th>
+            <th>Preset Name</th>
             <th>Aspect Ratio</th>
             <th>Resolution</th>
-            <th>Bitrate</th>
-            <th>Max Size</th>
-            <th>Upfront Card</th>
-            <th>Endcard</th>
+            <th>Target Bitrate</th>
+            <th>Max Filesize</th>
+            <th>Prepend</th>
+            <th>Append</th>
             <th>ESRB Overlay</th>
+            <th>FPS</th>
+            <th>Codec/Format</th>
+            <th>Audio Specs</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {presets.length === 0 && (
-            <tr><td colSpan={9} className="pm-empty">No presets yet. Create one above.</td></tr>
+            <tr><td colSpan={12} className="pm-empty">No presets yet. Create one above.</td></tr>
           )}
-          {presets.map((p) => (
+          {presets.slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
             <tr key={p.id}>
               <td><strong>{p.name}</strong><div className="pm-id">{p.id}</div></td>
               <td>{formatAspectLabel(p.width, p.height)}</td>
               <td>{p.width}×{p.height}</td>
               <td>{formatVideoBitrateMbps(p.bitrate)} Mbps</td>
               <td>{p.maxFileSizeMB && p.maxFileSizeMB > 0 ? `${p.maxFileSizeMB} MB` : 'No limit'}</td>
-              <td>{p.introSlate?.enabled ? (p.introSlate.assetRef?.key || getBasename(p.introSlate.assetPath) || 'Not selected') : 'None'}</td>
-              <td>{p.outroSlate?.enabled ? (p.outroSlate.assetRef?.key || getBasename(p.outroSlate.assetPath) || 'Not selected') : 'None'}</td>
-              <td>{p.overlay?.enabled ? (p.overlay.assetPath ? getBasename(p.overlay.assetPath) : (p.overlay.assetRef?.key || 'Not selected')) : 'None'}</td>
+              <td>{getSlateDisplayName(p.introSlate, prependLib)}</td>
+              <td>{getSlateDisplayName(p.outroSlate, appendLib)}</td>
+              <td>{getOverlayDisplayName(p.overlay)}</td>
+              <td>59.94</td>
+              <td>{p.videoCodec.toUpperCase()} / {p.container.toUpperCase()}</td>
+              <td>{p.audioCodec.toUpperCase()} @ {p.audioBitrate || 320} kbps</td>
               <td className="pm-actions-cell">
                 <button className="btn btn-small btn-secondary" onClick={() => duplicatePreset(p)}>Duplicate</button>
                 <button className="btn btn-small btn-secondary" onClick={() => openEdit(p)}>Edit</button>
@@ -642,32 +467,14 @@ export default function PresetManager({
                 Enable Prepend
               </label>
               {draft.introEnabled && (
-                <>
-                  <div className="input-group">
-                    <select value={prependLib.find((a) => a.key === draft.introAssetKey && a.source === draft.introAssetSource)?.id || ''}
-                      onChange={(e) => selectFromLib('intro', e.target.value)}>
-                      <option value="">Select from prepend library</option>
-                      {prependLib.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.source === 'mediasilo' ? 'MediaSilo' : 'Local'})</option>)}
-                    </select>
-                    <button className="btn btn-small btn-secondary" onClick={() => addFileToLib('intro')}>Add File</button>
-                    <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloToLib('intro')}>Add MediaSilo</button>
-                  </div>
-                  <input type="text" placeholder="Shared asset key" value={draft.introAssetKey} onChange={(e) => set('introAssetKey', e.target.value)} />
-                  <select value={draft.introAssetSource} onChange={(e) => set('introAssetSource', e.target.value as 'local' | 'mediasilo')}>
-                    <option value="local">Local</option>
-                    <option value="mediasilo">MediaSilo</option>
+                prependLib.length === 0 ? (
+                  <p className="help-text">No prepend assets in library. Add some in Manage Assets.</p>
+                ) : (
+                  <select value={draft.introLibraryId} onChange={(e) => set('introLibraryId', e.target.value)}>
+                    <option value="">— Select prepend asset —</option>
+                    {prependLib.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
-                  {draft.introAssetSource === 'mediasilo' && (
-                    <input type="text" placeholder="MediaSilo asset ID (optional)" value={draft.introMediaSiloId} onChange={(e) => set('introMediaSiloId', e.target.value)} />
-                  )}
-                  <input type="text" placeholder="Local path" value={draft.introPath} readOnly />
-                  {draft.introAssetKey && (
-                    <div className="local-override-row">
-                      <span>Local override: {overrides[draft.introAssetKey] || 'Not set'}</span>
-                      <button className="btn btn-small btn-secondary" onClick={() => setLocalOverride('intro')}>Set Local Path</button>
-                    </div>
-                  )}
-                </>
+                )
               )}
             </div>
 
@@ -678,32 +485,14 @@ export default function PresetManager({
                 Enable Append
               </label>
               {draft.outroEnabled && (
-                <>
-                  <div className="input-group">
-                    <select value={appendLib.find((a) => a.key === draft.outroAssetKey && a.source === draft.outroAssetSource)?.id || ''}
-                      onChange={(e) => selectFromLib('outro', e.target.value)}>
-                      <option value="">Select from append library</option>
-                      {appendLib.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.source === 'mediasilo' ? 'MediaSilo' : 'Local'})</option>)}
-                    </select>
-                    <button className="btn btn-small btn-secondary" onClick={() => addFileToLib('outro')}>Add File</button>
-                    <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloToLib('outro')}>Add MediaSilo</button>
-                  </div>
-                  <input type="text" placeholder="Shared asset key" value={draft.outroAssetKey} onChange={(e) => set('outroAssetKey', e.target.value)} />
-                  <select value={draft.outroAssetSource} onChange={(e) => set('outroAssetSource', e.target.value as 'local' | 'mediasilo')}>
-                    <option value="local">Local</option>
-                    <option value="mediasilo">MediaSilo</option>
+                appendLib.length === 0 ? (
+                  <p className="help-text">No append assets in library. Add some in Manage Assets.</p>
+                ) : (
+                  <select value={draft.outroLibraryId} onChange={(e) => set('outroLibraryId', e.target.value)}>
+                    <option value="">— Select append asset —</option>
+                    {appendLib.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
-                  {draft.outroAssetSource === 'mediasilo' && (
-                    <input type="text" placeholder="MediaSilo asset ID (optional)" value={draft.outroMediaSiloId} onChange={(e) => set('outroMediaSiloId', e.target.value)} />
-                  )}
-                  <input type="text" placeholder="Local path" value={draft.outroPath} readOnly />
-                  {draft.outroAssetKey && (
-                    <div className="local-override-row">
-                      <span>Local override: {overrides[draft.outroAssetKey] || 'Not set'}</span>
-                      <button className="btn btn-small btn-secondary" onClick={() => setLocalOverride('outro')}>Set Local Path</button>
-                    </div>
-                  )}
-                </>
+                )
               )}
             </div>
 
@@ -715,61 +504,25 @@ export default function PresetManager({
               </label>
               {draft.overlayEnabled && (
                 <>
-                  <div className="asset-grid">
-                    <select value={draft.overlayPosition} onChange={(e) => set('overlayPosition', e.target.value as Draft['overlayPosition'])}>
-                      <option value="tl">Top Left</option>
-                      <option value="tr">Top Right</option>
-                      <option value="bl">Bottom Left</option>
-                      <option value="br">Bottom Right</option>
-                    </select>
+                  <div className="form-group">
+                    <label>Duration (seconds)</label>
                     <input
                       type="number"
-                      min={1}
-                      placeholder="Duration (seconds)"
+                      min={0}
+                      step={0.1}
                       value={draft.overlayDuration}
                       onChange={(e) => set('overlayDuration', e.target.value)}
                     />
                   </div>
-                  <div className="input-group">
-                    <select
-                      value={
-                        overlayLib.find(
-                          (asset) =>
-                            asset.key === draft.overlayAssetKey &&
-                            asset.source === draft.overlayAssetSource &&
-                            asset.position === draft.overlayPosition
-                        )?.id || ''
-                      }
-                      onChange={(event) =>
-                        selectOverlayFromLibrary(event.target.value)
-                      }
-                    >
-                      <option value="">Select from overlay library</option>
-                      {overlayLib
-                        .filter((asset) => asset.position === draft.overlayPosition)
-                        .map((asset) => (
-                          <option key={asset.id} value={asset.id}>
-                            {asset.name} ({asset.source === 'mediasilo' ? 'MediaSilo' : 'Local'})
-                          </option>
-                        ))}
+                  {overlayLib.length === 0 ? (
+                    <p className="help-text">No overlay assets in library. Add some in Manage Assets.</p>
+                  ) : (
+                    <select value={draft.overlayLibraryId} onChange={(e) => set('overlayLibraryId', e.target.value)}>
+                      <option value="">— Select overlay asset —</option>
+                      {overlayLib.map((asset) => (
+                        <option key={asset.id} value={asset.id}>{asset.name}</option>
+                      ))}
                     </select>
-                    <button className="btn btn-small btn-secondary" onClick={() => addOverlayToLibrary(draft.overlayPosition)}>Add File</button>
-                    <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloOverlayToLibrary(draft.overlayPosition)}>Add MediaSilo</button>
-                  </div>
-                  <input type="text" placeholder="Shared asset key" value={draft.overlayAssetKey} onChange={(e) => set('overlayAssetKey', e.target.value)} />
-                  <select value={draft.overlayAssetSource} onChange={(e) => set('overlayAssetSource', e.target.value as 'local' | 'mediasilo')}>
-                    <option value="local">Local</option>
-                    <option value="mediasilo">MediaSilo</option>
-                  </select>
-                  {draft.overlayAssetSource === 'mediasilo' && (
-                    <input type="text" placeholder="MediaSilo asset ID (optional)" value={draft.overlayMediaSiloId} onChange={(e) => set('overlayMediaSiloId', e.target.value)} />
-                  )}
-                  <input type="text" placeholder="Overlay asset path" value={draft.overlayPath} readOnly />
-                  {draft.overlayAssetKey && (
-                    <div className="local-override-row">
-                      <span>Local override: {overrides[draft.overlayAssetKey] || 'Not set'}</span>
-                      <button className="btn btn-small btn-secondary" onClick={() => setLocalOverride('overlay')}>Set Local Path</button>
-                    </div>
                   )}
                 </>
               )}

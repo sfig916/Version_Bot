@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import path from 'path';
 import {
   createRenderPlan,
   calculateAdjustedBitrate,
@@ -164,6 +165,25 @@ describe('Render Plan Generator', () => {
 
       expect(plan.jobs[0].maxFileSizeMB).toBe(50);
       expect(plan.jobs[0].adjustedBitrate).toBeDefined();
+    });
+
+    it('should sanitize invalid filename characters for output paths', () => {
+      const presetWithInvalidName: OutputPreset = {
+        ...mockPreset,
+        id: 'social_16x9',
+        name: 'Social: 16/9? *Final*',
+      };
+
+      const plan = createRenderPlan(
+        mockVideoMetadata,
+        [presetWithInvalidName],
+        '/output',
+        '{name}.{ext}'
+      );
+
+      const outputFilename = path.basename(plan.jobs[0].outputPath);
+      expect(outputFilename).not.toMatch(/[<>:"/\\|?*]/);
+      expect(outputFilename.endsWith('.mp4')).toBe(true);
     });
   });
 

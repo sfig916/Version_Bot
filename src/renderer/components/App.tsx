@@ -5,13 +5,16 @@
 import React, { useState, useEffect } from 'react';
 import { VideoMetadata, OutputPreset, RenderPlan } from '../../core/models/types';
 import { hasMatchingAspectRatio } from '../../core/rendering/aspectRatio';
+import { AppError, parseError } from '../utils/errorHandler';
 import VideoSelector from './VideoSelector';
 import PresetSelector from './PresetSelector';
 import PresetManager from './PresetManager';
+import AssetLibraryManager from './AssetLibraryManager';
 import RenderPlanner from './RenderPlanner';
+import ErrorBanner from './ErrorBanner';
 import './App.css';
 
-type AppView = 'video-select' | 'preset-select' | 'render-plan' | 'exporting' | 'preset-manager';
+type AppView = 'video-select' | 'preset-select' | 'render-plan' | 'exporting' | 'preset-manager' | 'asset-library-manager';
 
 interface JobProgressEvent {
   jobId: string;
@@ -77,7 +80,7 @@ function getCompatiblePresetIds(
 interface AppState {
   currentView: AppView;
   selectedVideo: VideoMetadata | null;
-  videoError: string | null;
+  videoError: AppError | null;
   availablePresets: OutputPreset[];
   selectedPresets: Set<string>;
   renderPlan: RenderPlan | null;
@@ -122,6 +125,36 @@ export default function App() {
     }
   };
 
+  const handleOpenPresetManager = async () => {
+    setState((prev) => ({ ...prev, isLoading: true }));
+
+    try {
+      const result = await window.versionBotAPI.listPresets();
+      if (result.success && result.data) {
+        setState((prev) => ({
+          ...prev,
+          availablePresets: result.data!,
+          currentView: 'preset-manager',
+          isLoading: false,
+        }));
+      } else {
+        console.error('Failed to refresh presets:', result.error);
+        setState((prev) => ({
+          ...prev,
+          currentView: 'preset-manager',
+          isLoading: false,
+        }));
+      }
+    } catch (error) {
+      console.error('Error refreshing presets:', error);
+      setState((prev) => ({
+        ...prev,
+        currentView: 'preset-manager',
+        isLoading: false,
+      }));
+    }
+  };
+
   const handleVideoSelected = async (metadata: VideoMetadata) => {
     const compatiblePresetIds = getCompatiblePresetIds(
       metadata,
@@ -137,11 +170,28 @@ export default function App() {
     }));
   };
 
-  const handleVideoError = (error: string) => {
+  const handleVideoError = (error: string | AppError | null | undefined) => {
+    // Don't set error if it's empty or null
+    if (!error || (typeof error === 'string' && error.trim() === '')) {
+      setState((prev) => ({
+        ...prev,
+        videoError: null,
+      }));
+      return;
+    }
+    
+    const appError = typeof error === 'string' ? parseError(error) : error;
     setState((prev) => ({
       ...prev,
-      videoError: error,
+      videoError: appError,
       selectedVideo: null,
+    }));
+  };
+
+  const dismissError = () => {
+    setState((prev) => ({
+      ...prev,
+      videoError: null,
     }));
   };
 
@@ -161,15 +211,16 @@ export default function App() {
     outputDir: string,
     filenameTemplate: string,
     fileSizeConstraints: Record<string, number>,
-    autoRun = false
+    autoRun = false,
+    overlayDurationOverrideSeconds?: number
   ) => {
     if (!state.selectedVideo) {
-      console.error('No video selected');
+      handleVideoError('No video selected');
       return;
     }
 
     if (state.selectedPresets.size === 0) {
-      console.error('No presets selected');
+      handleVideoError('No output presets selected');
       return;
     }
 
@@ -182,7 +233,8 @@ export default function App() {
         state.availablePresets,
         outputDir,
         filenameTemplate,
-        fileSizeConstraints
+        fileSizeConstraints,
+        overlayDurationOverrideSeconds
       );
 
       if (result.success && result.data) {
@@ -192,17 +244,19 @@ export default function App() {
           currentView: 'render-plan',
           isRendering: false,
           isLoading: false,
+          videoError: null,
         }));
 
         if (autoRun) {
           await handleStartRender(result.data!);
         }
       } else {
-        console.error('Failed to create render plan:', result.error);
+        handleVideoError(result.error || 'Failed to create render plan');
         setState((prev) => ({ ...prev, isLoading: false }));
       }
     } catch (error) {
-      console.error('Error creating render plan:', error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      handleVideoError(err.message || 'Error creating render plan');
       setState((prev) => ({ ...prev, isLoading: false }));
     }
   };
@@ -412,11 +466,37 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Version Bot</h1>
-        <p>Video Versioning & Batch Export Tool</p>
+        <div className="header-content">
+          <div className="header-title">
+            <h1>Version Bot</h1>
+            <p>Video Versioning & Batch Export Tool</p>
+          </div>
+          {state.currentView === 'video-select' && (
+            <nav className="header-nav">
+              <button
+                className="btn btn-nav"
+                onClick={handleOpenPresetManager}
+                title="Manage rendering presets and output formats"
+              >
+                ⚙️ Manage Presets
+              </button>
+              <button
+                className="btn btn-nav"
+                onClick={() => setState((prev) => ({ ...prev, currentView: 'asset-library-manager' }))}
+                title="Manage prepend, append, and overlay assets"
+              >
+                📁 Manage Assets
+              </button>
+            </nav>
+          )}
+        </div>
       </header>
 
       <main className="app-main">
+        {state.videoError && (
+          <ErrorBanner error={state.videoError} onDismiss={dismissError} />
+        )}
+
         {state.isLoading && (
           <div className="loading-overlay">
             <div className="spinner"></div>
@@ -429,7 +509,8 @@ export default function App() {
             onVideoSelected={handleVideoSelected}
             onError={handleVideoError}
             error={state.videoError}
-            onManagePresets={() => setState((prev) => ({ ...prev, currentView: 'preset-manager' }))}
+            onManagePresets={handleOpenPresetManager}
+            onManageAssets={() => setState((prev) => ({ ...prev, currentView: 'asset-library-manager' }))}
           />
         )}
 
@@ -442,16 +523,16 @@ export default function App() {
           />
         )}
 
+        {state.currentView === 'asset-library-manager' && (
+          <AssetLibraryManager
+            onBack={() => setState((prev) => ({ ...prev, currentView: 'video-select' }))}
+          />
+        )}
+
         {state.currentView === 'preset-select' && state.selectedVideo && (
           <PresetSelector
             video={state.selectedVideo}
-            presets={state.availablePresets.filter((preset) =>
-              hasMatchingAspectRatio(
-                state.selectedVideo!.aspectRatio,
-                preset.width,
-                preset.height
-              )
-            )}
+            presets={state.availablePresets}
             selectedPresetIds={Array.from(state.selectedPresets)}
             onPresetToggle={handlePresetToggle}
             onCreatePlan={handleCreatePlan}

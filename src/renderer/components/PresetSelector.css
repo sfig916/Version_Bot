@@ -4,14 +4,27 @@
   width: 100%;
   max-width: none;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ps-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 0 1.5rem;
+}
+
+.ps-header h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 1.5rem;
 }
 
 .preset-selector-content {
   width: 100%;
-}
-
-.preset-selector > button {
-  margin-bottom: 1.5rem;
+  padding: 0 1.5rem;
 }
 
 .video-info {
@@ -187,6 +200,24 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(120px, 1fr));
   gap: 0.5rem;
+}
+
+.duration-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+
+.duration-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.duration-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .builder-actions {

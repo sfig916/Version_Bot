@@ -3,6 +3,7 @@
   "compilerOptions": {
     "outDir": "../../dist/main",
     "rootDir": "..",
+    "sourceMap": false,
     "types": ["node", "electron"],
     "module": "commonjs",
     "target": "ES2020"

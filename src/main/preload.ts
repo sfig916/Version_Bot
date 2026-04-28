@@ -40,14 +40,25 @@ interface APIResult<T> {
 
 const api = {
   // File operations
-  selectVideoFile: () =>
-    ipcRenderer.invoke('select-video-file') as Promise<string | null>,
+  selectVideoFile: async () => {
+    try {
+      const result = await ipcRenderer.invoke('select-video-file') as Promise<string | null>;
+      console.log('[preload] selectVideoFile result:', result);
+      return result;
+    } catch (error) {
+      console.error('[preload] selectVideoFile error:', error);
+      throw error;
+    }
+  },
 
   selectOutputDirectory: () =>
     ipcRenderer.invoke('select-output-directory') as Promise<string | null>,
 
   selectAssetFile: (kind: 'video' | 'image' | 'any' = 'any') =>
     ipcRenderer.invoke('select-asset-file', kind) as Promise<string | null>,
+
+  selectAssetFiles: (kind: 'video' | 'image' | 'any' = 'any') =>
+    ipcRenderer.invoke('select-asset-files', kind) as Promise<string[]>,
 
   openDirectory: (dirPath: string) =>
     ipcRenderer.invoke('open-directory', dirPath) as Promise<APIResult<void>>,
@@ -69,6 +80,16 @@ const api = {
   setAssetOverride: (key: string, filePath: string | null) =>
     ipcRenderer.invoke('set-asset-override', key, filePath) as Promise<APIResult<Record<string, string>>>,
 
+  // Asset libraries (file-based, persistent)
+  getAssetLibrary: (libraryName: string) =>
+    ipcRenderer.invoke('get-asset-library', libraryName) as Promise<APIResult<unknown[]>>,
+
+  saveAssetLibrary: (libraryName: string, items: unknown[]) =>
+    ipcRenderer.invoke('save-asset-library', libraryName, items) as Promise<APIResult<void>>,
+
+  migrateAssetLibraryFromLocalStorage: (libraryName: string, items: unknown[]) =>
+    ipcRenderer.invoke('migrate-asset-library-from-localstorage', libraryName, items) as Promise<APIResult<void>>,
+
   // Render planning
   createRenderPlan: (
     metadata: VideoMetadata,
@@ -76,7 +97,8 @@ const api = {
     allPresets: OutputPreset[],
     outputDir: string,
     filenameTemplate: string,
-    fileSizeConstraints?: Record<string, number>
+    fileSizeConstraints?: Record<string, number>,
+    overlayDurationOverrideSeconds?: number
   ) =>
     ipcRenderer.invoke(
       'create-render-plan',
@@ -85,7 +107,8 @@ const api = {
       allPresets,
       outputDir,
       filenameTemplate,
-      fileSizeConstraints
+      fileSizeConstraints,
+      overlayDurationOverrideSeconds
     ) as Promise<APIResult<RenderPlan>>,
 
   getRenderPlan: () =>

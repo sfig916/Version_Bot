@@ -1,0 +1,361 @@
+.alm-container {
+  display: flex;
+  flex-direction: column;
+  background: #f5f5f5;
+}
+
+.alm-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: white;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.alm-header h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.alm-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  overflow-x: auto;
+}
+
+.alm-tab {
+  padding: 1rem 1.5rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1rem;
+  color: #666;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.alm-tab:hover {
+  color: #333;
+  background: #fafafa;
+}
+
+.alm-tab.active {
+  color: #0066cc;
+  border-bottom-color: #0066cc;
+}
+
+.alm-content {
+  padding: 1.5rem;
+}
+
+.alm-library-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.alm-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.alm-toolbar h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.alm-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.alm-filter {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.alm-empty {
+  padding: 2rem;
+  text-align: center;
+  color: #999;
+  font-size: 1.1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px dashed #ddd;
+}
+
+.alm-assets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1rem;
+}
+
+.alm-asset-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  transition: all 0.2s;
+}
+
+.alm-asset-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.alm-asset-info {
+  flex: 1;
+}
+
+.alm-asset-info h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.1rem;
+  word-break: break-word;
+}
+
+.alm-asset-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  width: fit-content;
+}
+
+.badge-local {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.badge-mediasilo {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.meta-item {
+  color: #666;
+}
+
+.meta-item code {
+  background: #f5f5f5;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+.meta-path {
+  word-break: break-all;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+.alm-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.form-group input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.alm-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.alm-asset-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: #0066cc;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #0052a3;
+}
+
+.btn-secondary {
+  background: #f0f0f0;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.btn-secondary:hover {
+  background: #e0e0e0;
+}
+
+.btn-danger {
+  background: #f44336;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #d32f2f;
+}
+
+.btn-small {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+/* Prompt Dialog */
+.prompt-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.prompt-dialog {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  max-width: 400px;
+  width: 90%;
+}
+
+.prompt-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.prompt-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.prompt-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.prompt-body label {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.prompt-body input {
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.prompt-body input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.prompt-actions {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .alm-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .alm-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .alm-actions button,
+  .alm-actions select {
+    width: 100%;
+  }
+
+  .alm-assets {
+    grid-template-columns: 1fr;
+  }
+
+  .alm-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .alm-header h2 {
+    width: 100%;
+  }
+
+  .alm-tabs {
+    flex-wrap: wrap;
+  }
+}

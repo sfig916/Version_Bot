@@ -37,24 +37,23 @@ const overlayConfigSchema = z
         fallbackRelativePath: z.string().optional(),
       })
       .optional(),
-    position: z.enum(['tl', 'tr', 'bl', 'br']),
     duration: z.number().positive().default(4),
   });
 
 const outputPresetSchema = z
   .object({
-    id: z.string(),
-    name: z.string(),
-    width: z.number().positive().int(),
-    height: z.number().positive().int(),
-    scalingMode: z.enum(['scale', 'pillarbox', 'letterbox', 'crop']),
-    bitrate: z.number().positive(),
-    videoCodec: z.enum(['h264', 'h265', 'hevc', 'vp9', 'av1']),
+    id: z.string().min(1),
+    name: z.string().min(1),
+    width: z.coerce.number().positive().int().default(1920),
+    height: z.coerce.number().positive().int().default(1080),
+    scalingMode: z.enum(['scale', 'pillarbox', 'letterbox', 'crop']).default('scale'),
+    bitrate: z.coerce.number().positive().default(50000),
+    videoCodec: z.enum(['h264', 'h265', 'hevc', 'vp9', 'av1']).default('h264'),
     crf: z.number().min(0).max(51).optional(),
-    audioBitrate: z.number().positive(),
-    audioCodec: z.enum(['aac', 'libopus', 'libvorbis', 'mp3']),
-    container: z.enum(['mp4', 'webm', 'mov', 'mkv']),
-    maxFileSizeMB: z.number().min(0).optional(),
+    audioBitrate: z.coerce.number().positive().default(320),
+    audioCodec: z.enum(['aac', 'libopus', 'libvorbis', 'mp3']).default('aac'),
+    container: z.enum(['mp4', 'webm', 'mov', 'mkv']).default('mp4'),
+    maxFileSizeMB: z.coerce.number().min(0).optional(),
     introSlate: slateConfigSchema.optional(),
     outroSlate: slateConfigSchema.optional(),
     overlay: overlayConfigSchema.optional(),
@@ -113,7 +112,13 @@ export async function loadPresetsFromFile(
       return;
     }
 
-    invalidSummaries.push(`index ${index}: ${parsedPreset.error.issues[0]?.message || 'invalid preset'}`);
+    const firstIssue = parsedPreset.error.issues[0];
+    const issuePath = firstIssue?.path?.length
+      ? `[${firstIssue.path.join('.')}] `
+      : '';
+    invalidSummaries.push(
+      `index ${index}: ${issuePath}${firstIssue?.message || 'invalid preset'}`
+    );
   });
 
   if (invalidSummaries.length > 0) {
@@ -137,12 +142,14 @@ export async function savePresetsToFile(
   filePath: string,
   format: 'json' | 'yaml' = 'json'
 ): Promise<void> {
+  const normalizedPresets = presets.map((preset) => outputPresetSchema.parse(preset));
+
   const data: PresetsFileSchema = {
     metadata: {
       version: '1.0',
       description: 'Video export presets for Version Bot',
     },
-    presets,
+    presets: normalizedPresets,
   };
 
   let content: string;

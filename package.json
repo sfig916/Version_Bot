@@ -15,6 +15,7 @@
     "build:renderer": "vite build",
     "pack": "electron-builder --dir",
     "dist": "npm run build && electron-builder",
+    "package:portable": "node scripts/package-portable.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest --run",
@@ -36,6 +37,7 @@
     "@types/react": "^18.2.20",
     "@types/react-dom": "^18.2.7",
     "@vitejs/plugin-react": "^4.0.3",
+    "archiver": "^6.0.2",
     "concurrently": "^8.2.1",
     "electron": "^26.0.0",
     "electron-builder": "^24.6.4",
@@ -56,11 +58,11 @@
     "files": [
       "dist/**/*",
       "node_modules/**/*",
+      "presets/**/*",
       "package.json"
     ],
     "win": {
       "target": [
-        "nsis",
         "portable"
       ]
     },

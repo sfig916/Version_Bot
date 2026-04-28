@@ -85,4 +85,96 @@ describe('FFmpeg Command Builder', () => {
     expect(crfArgIndex).toBeGreaterThan(-1);
     expect(command.args[crfArgIndex + 1]).toBe('0');
   });
+
+  it('should build concat pipeline when prepend and append are enabled', () => {
+    const command = buildFFmpegCommand({
+      ...baseJob,
+      preset: {
+        ...baseJob.preset,
+        introSlate: {
+          enabled: true,
+          assetPath: '/test/intro.mov',
+        },
+        outroSlate: {
+          enabled: true,
+          assetPath: '/test/outro.mov',
+        },
+        overlay: {
+          enabled: true,
+          assetPath: '/test/overlay.png',
+          duration: 4,
+        },
+      },
+    });
+
+    const filterComplexIndex = command.args.indexOf('-filter_complex');
+    expect(filterComplexIndex).toBeGreaterThan(-1);
+
+    const filterGraph = command.args[filterComplexIndex + 1];
+    expect(filterGraph).toContain('overlay=0:0');
+    expect(filterGraph).toContain("enable='between(t,0,4)'");
+    expect(filterGraph).toContain('concat=n=3:v=1:a=1[vout][aout]');
+
+    expect(command.args).toContain('-map');
+    expect(command.args).toContain('[vout]');
+    expect(command.args).toContain('[aout]');
+  });
+
+  it('should use filter_complex for overlay-only renders', () => {
+    const command = buildFFmpegCommand({
+      ...baseJob,
+      preset: {
+        ...baseJob.preset,
+        overlay: {
+          enabled: true,
+          assetPath: '/test/overlay.png',
+          duration: 4,
+        },
+      },
+    });
+
+    expect(command.args.includes('-filter:v')).toBe(false);
+    const filterComplexIndex = command.args.indexOf('-filter_complex');
+    expect(filterComplexIndex).toBeGreaterThan(-1);
+    const filterGraph = command.args[filterComplexIndex + 1];
+    expect(filterGraph).toContain('[0:v]');
+    expect(filterGraph).toContain('overlay=0:0');
+    expect(filterGraph).toContain('null[vout]');
+    expect(command.args).toContain('[vout]');
+    expect(command.args).toContain('[aout]');
+  });
+
+  it('should generate silent fallback audio for segments without audio tracks', () => {
+    const command = buildFFmpegCommand({
+      ...baseJob,
+      source: {
+        ...baseJob.source,
+        hasAudioTrack: false,
+      },
+      preset: {
+        ...baseJob.preset,
+        introSlate: {
+          enabled: true,
+          assetPath: '/test/intro_no_audio.mov',
+          duration: 2,
+          hasAudio: false,
+        },
+        outroSlate: {
+          enabled: true,
+          assetPath: '/test/outro_no_audio.mov',
+          duration: 3,
+          hasAudio: false,
+        },
+      },
+    });
+
+    const filterComplexIndex = command.args.indexOf('-filter_complex');
+    expect(filterComplexIndex).toBeGreaterThan(-1);
+    const filterGraph = command.args[filterComplexIndex + 1];
+
+    expect(filterGraph).toContain('anullsrc=channel_layout=stereo:sample_rate=48000');
+    expect(filterGraph).toContain('atrim=duration=2');
+    expect(filterGraph).toContain('atrim=duration=3');
+    expect(filterGraph).toContain('concat=n=3:v=1:a=1[vout][aout]');
+  });
 });

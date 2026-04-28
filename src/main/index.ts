@@ -9,6 +9,7 @@ import { getLogger } from '../core/logging/logger';
 import { probeVideo } from '../core/probing/videoProber';
 import {
   loadPresetsFromDirectory,
+  loadPresetsFromFile,
   savePresetsToFile,
   createExamplePresets,
   listPresetFiles,
@@ -162,6 +163,48 @@ function resolvePresetAssetsForRender(
   };
 }
 
+async function enrichSlateForRender(
+  slate: SlateConfig | undefined,
+  slotName: 'prepend' | 'append'
+): Promise<SlateConfig | undefined> {
+  if (!slate?.enabled || !slate.assetPath) {
+    return slate;
+  }
+
+  try {
+    const metadata = await probeVideo(slate.assetPath);
+    return {
+      ...slate,
+      duration: Math.max(1, slate.duration || metadata.duration || 1),
+      hasAudio: metadata.hasAudioTrack !== false,
+    };
+  } catch (error) {
+    logger.warn(`Failed to probe ${slotName} asset, using safe defaults`, {
+      assetPath: slate.assetPath,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return {
+      ...slate,
+      duration: Math.max(1, slate.duration || 1),
+      hasAudio: slate.hasAudio ?? true,
+    };
+  }
+}
+
+async function enrichPresetForRender(preset: OutputPreset): Promise<OutputPreset> {
+  const [introSlate, outroSlate] = await Promise.all([
+    enrichSlateForRender(preset.introSlate, 'prepend'),
+    enrichSlateForRender(preset.outroSlate, 'append'),
+  ]);
+
+  return {
+    ...preset,
+    introSlate,
+    outroSlate,
+  };
+}
+
 async function ensurePresetStoreInitialized(presetsDir?: string): Promise<void> {
   const dir = getPresetsDir(presetsDir);
   if (!fs.existsSync(dir)) {
@@ -170,8 +213,24 @@ async function ensurePresetStoreInitialized(presetsDir?: string): Promise<void> 
 
   const presetFiles = listPresetFiles(dir);
   if (presetFiles.length === 0) {
-    const defaultPresets = createExamplePresets();
-    await savePresetsToFile(defaultPresets, getUserPresetsFilePath(presetsDir), 'yaml');
+    // Try to load bundled presets from the app resources
+    const bundledPresetsPath = path.join(__dirname, '../../presets/user-presets.yaml');
+    let presetsToSave = createExamplePresets();
+
+    if (fs.existsSync(bundledPresetsPath)) {
+      try {
+        logger.info(`Loading bundled presets from: ${bundledPresetsPath}`);
+        presetsToSave = await loadPresetsFromFile(bundledPresetsPath);
+        logger.info(`Loaded ${presetsToSave.length} bundled presets`);
+      } catch (error) {
+        logger.warn('Failed to load bundled presets, using defaults', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        presetsToSave = createExamplePresets();
+      }
+    }
+
+    await savePresetsToFile(presetsToSave, getUserPresetsFilePath(presetsDir), 'yaml');
   }
 }
 
@@ -222,33 +281,104 @@ app.on('activate', () => {
 // IPC HANDLERS
 // ============================================================================
 
+// ---- Asset Libraries -------------------------------------------------------
+
+function getAssetLibraryFilePath(libraryName: string): string {
+  return path.join(app.getPath('userData'), `${libraryName}.json`);
+}
+
+function readAssetLibrary(libraryName: string): unknown[] {
+  const filePath = getAssetLibraryFilePath(libraryName);
+  if (!fs.existsSync(filePath)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown[];
+  } catch {
+    return [];
+  }
+}
+
+function writeAssetLibrary(libraryName: string, items: unknown[]): void {
+  const filePath = getAssetLibraryFilePath(libraryName);
+  fs.writeFileSync(filePath, JSON.stringify(items, null, 2), 'utf-8');
+}
+
+ipcMain.handle('get-asset-library', (_event, libraryName: string) => {
+  try {
+    return { success: true, data: readAssetLibrary(libraryName) };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('save-asset-library', (_event, libraryName: string, items: unknown[]) => {
+  try {
+    writeAssetLibrary(libraryName, items);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+});
+
+// Migration: import existing data from renderer localStorage on first run
+ipcMain.handle('migrate-asset-library-from-localstorage', (_event, libraryName: string, items: unknown[]) => {
+  try {
+    const filePath = getAssetLibraryFilePath(libraryName);
+    // Only migrate if the file doesn't exist yet (first run)
+    if (!fs.existsSync(filePath) && Array.isArray(items) && items.length > 0) {
+      writeAssetLibrary(libraryName, items);
+      logger.info(`Migrated ${items.length} items for library: ${libraryName}`);
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+});
+
 /**
  * Select video file
  */
 ipcMain.handle('select-video-file', async () => {
-  const result = await dialog.showOpenDialog(mainWindow!, {
-    title: 'Select Video File',
-    properties: ['openFile'],
-    filters: [
-      {
-        name: 'Video Files',
-        extensions: [
-          'mp4',
-          'mkv',
-          'mov',
-          'avi',
-          'flv',
-          'wmv',
-          'webm',
-          'ts',
-          'm3u8',
-        ],
-      },
-      { name: 'All Files', extensions: ['*'] },
-    ],
-  });
+  try {
+    if (!mainWindow) {
+      const msg = 'Application window is not ready';
+      logger.error(msg);
+      throw new Error(msg);
+    }
 
-  return result.filePaths.length > 0 ? result.filePaths[0] : null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select Video File',
+      properties: ['openFile'],
+      filters: [
+        {
+          name: 'Video Files',
+          extensions: [
+            'mp4',
+            'mkv',
+            'mov',
+            'avi',
+            'flv',
+            'wmv',
+            'webm',
+            'ts',
+            'm3u8',
+          ],
+        },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+
+    logger.info('File dialog result', {
+      canceled: result.canceled,
+      pathsCount: result.filePaths.length,
+    });
+
+    return result.filePaths.length > 0 ? result.filePaths[0] : null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    logger.error('File dialog error', { error: message, stack });
+    throw error;
+  }
 });
 
 /**
@@ -286,6 +416,40 @@ ipcMain.handle('select-asset-file', async (_event, kind: 'video' | 'image' | 'an
   });
 
   return result.filePaths.length > 0 ? result.filePaths[0] : null;
+});
+
+ipcMain.handle('select-asset-files', async (_event, kind: 'video' | 'image' | 'any' = 'any') => {
+  const videoExtensions = ['mp4', 'mkv', 'mov', 'avi', 'flv', 'wmv', 'webm', 'ts', 'm3u8'];
+  const imageExtensions = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tif', 'tiff'];
+
+  const filters = (() => {
+    if (kind === 'video') {
+      return [
+        { name: 'Video Files', extensions: videoExtensions },
+        { name: 'All Files', extensions: ['*'] },
+      ];
+    }
+
+    if (kind === 'image') {
+      return [
+        { name: 'Image Files', extensions: imageExtensions },
+        { name: 'All Files', extensions: ['*'] },
+      ];
+    }
+
+    return [
+      { name: 'Media Files', extensions: [...videoExtensions, ...imageExtensions] },
+      { name: 'All Files', extensions: ['*'] },
+    ];
+  })();
+
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    title: 'Select Asset Files',
+    properties: ['openFile', 'multiSelections'],
+    filters,
+  });
+
+  return result.filePaths;
 });
 
 /**
@@ -384,22 +548,45 @@ ipcMain.handle(
     allPresets: OutputPreset[],
     outputDir: string,
     filenameTemplate: string,
-    fileSizeConstraints?: Record<string, number>
+    fileSizeConstraints?: Record<string, number>,
+    overlayDurationOverrideSeconds?: number
   ) => {
     try {
-      const selectedPresets = allPresets.filter((p) =>
-        selectedPresetIds.includes(p.id)
-      );
+      const selectedPresets = allPresets
+        .filter((p) => selectedPresetIds.includes(p.id))
+        .map((preset) => {
+          if (
+            typeof overlayDurationOverrideSeconds === 'number' &&
+            overlayDurationOverrideSeconds > 0 &&
+            preset.overlay?.enabled
+          ) {
+            return {
+              ...preset,
+              overlay: {
+                ...preset.overlay,
+                duration: overlayDurationOverrideSeconds,
+              },
+            };
+          }
+
+          return preset;
+        });
 
       if (selectedPresets.length === 0) {
         throw new Error('No presets selected');
       }
 
       const overrides = readAssetOverrides();
-      const resolvedPresets = selectedPresets.map((preset) => ({
-        ...resolvePresetAssetsForRender(preset, overrides),
-        scalingMode: 'scale' as const,
-      }));
+      const resolvedPresets = await Promise.all(
+        selectedPresets.map(async (preset) => {
+          const resolved = resolvePresetAssetsForRender(preset, overrides);
+          const enriched = await enrichPresetForRender(resolved);
+          return {
+            ...enriched,
+            scalingMode: 'scale' as const,
+          };
+        })
+      );
 
       logger.info(`Creating render plan for ${resolvedPresets.length} presets`);
 
@@ -513,6 +700,29 @@ ipcMain.handle('start-render', async () => {
       total: results.length,
       succeeded: results.filter((r) => r.success).length,
       failed: results.filter((r) => !r.success).length,
+    });
+
+    const failedResults = results.filter((result) => !result.success);
+    failedResults.forEach((failedResult) => {
+      const failedJob = currentPlan?.jobs.find((job) => job.id === failedResult.jobId);
+      let commandSummary: string | undefined;
+
+      if (failedJob) {
+        try {
+          commandSummary = buildFFmpegCommand(failedJob).fullCommand;
+        } catch {
+          commandSummary = undefined;
+        }
+      }
+
+      logger.error('Render job failed', {
+        jobId: failedResult.jobId,
+        presetId: failedJob?.preset.id,
+        presetName: failedJob?.preset.name,
+        outputPath: failedJob?.outputPath,
+        error: failedResult.error,
+        command: commandSummary,
+      });
     });
 
     return { success: true, data: results };

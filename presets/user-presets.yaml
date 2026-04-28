@@ -1,0 +1,213 @@
+metadata:
+  version: "1.0"
+  description: Video export presets for Version Bot
+presets:
+  - id: sony_esrb
+    name: SONY ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    introSlate:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\SIE_BING_2_1_4K_5994f_05s_V002.mov
+      assetRef:
+        key: sony_intro
+        source: local
+    outroSlate:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\SIE_BONG_2_1_3P_LEGAL_2026_EN_R_20s_4K_5994f_01.mov
+      assetRef:
+        key: sony_outro
+        source: local
+    overlay:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\ESRBs\BO7_S1_Toolkit_MGFX_ESRB_M_lower_R_4K_v01 (1).png
+      assetRef:
+        key: bo7_s1_toolkit_mgfx_esrb_m_lower_r_4k_v01_1
+        source: local
+      duration: 4
+  - id: bnet_esrb
+    name: BNET ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\2026_BNET.mov
+      assetRef:
+        key: bnet_outro_2026
+        source: local
+    overlay:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\ESRBs\BO7_S1_Toolkit_MGFX_ESRB_M_lower_R_4K_v01 (1).png
+      assetRef:
+        key: bo7_s1_esrb_lower_r
+        source: local
+      duration: 4
+  - id: unbranded_esrb
+    name: Unbranded ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    overlay:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\ESRBs\BO7_S1_Toolkit_MGFX_ESRB_M_lower_R_4K_v01 (1).png
+      assetRef:
+        key: bo7_s1_esrb_lower_r
+        source: local
+      duration: 4
+  - id: xbox_esrb
+    name: Xbox ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\CHMREV_INT_4K_XboxMnem_16x9.mov
+      assetRef:
+        key: xbox_outro
+        source: local
+    overlay:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\ESRBs\BO7_S1_Toolkit_MGFX_ESRB_M_lower_R_4K_v01 (1).png
+      assetRef:
+        key: bo7_s1_esrb_lower_r
+        source: local
+      duration: 4
+  - id: steam_esrb
+    name: Steam ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\2026_Steam.mov
+      assetRef:
+        key: steam_outro_2026
+        source: local
+    overlay:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\ESRBs\BO7_S1_Toolkit_MGFX_ESRB_M_lower_R_4K_v01 (1).png
+      assetRef:
+        key: bo7_s1_esrb_lower_r
+        source: local
+      duration: 4
+  - id: sony_no_esrb
+    name: SONY No ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    introSlate:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\SIE_BING_2_1_4K_5994f_05s_V002.mov
+      assetRef:
+        key: sony_intro
+        source: local
+    outroSlate:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\SIE_BONG_2_1_3P_LEGAL_2026_EN_R_20s_4K_5994f_01.mov
+      assetRef:
+        key: sony_outro
+        source: local
+  - id: bnet_no_esrb
+    name: BNET No ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\2026_BNET.mov
+      assetRef:
+        key: bnet_outro_2026
+        source: local
+  - id: xbox_no_esrb
+    name: Xbox No ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\CHMREV_INT_4K_XboxMnem_16x9.mov
+      assetRef:
+        key: xbox_outro
+        source: local
+  - id: steam_no_esrb
+    name: Steam No ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true
+      assetPath: C:\Users\Sfinegan\Downloads\PKG - test files for VersionBot __
+        16x9\2026_Steam.mov
+      assetRef:
+        key: steam_outro_2026
+        source: local

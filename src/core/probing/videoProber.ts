@@ -7,6 +7,7 @@ import path from 'path';
 import { VideoMetadata } from '../models/types';
 
 export interface FFprobeStreamInfo {
+  codec_type?: string;
   width?: number;
   height?: number;
   avg_frame_rate?: string;
@@ -53,7 +54,7 @@ export async function probeVideo(filePath: string): Promise<VideoMetadata> {
     '-v',
     'error',
     '-show_entries',
-    'stream=width,height,avg_frame_rate,duration,bit_rate,codec_name,sample_rate',
+    'stream=codec_type,width,height,avg_frame_rate,duration,bit_rate,codec_name,sample_rate',
     '-of',
     'json',
     filePath,
@@ -81,7 +82,7 @@ export async function probeVideo(filePath: string): Promise<VideoMetadata> {
   }
 
   // Get audio stream if available
-  const audioStream = probeData.streams.find((s) => s.sample_rate);
+  const audioStream = probeData.streams.find((s) => s.codec_type === 'audio');
 
   if (!videoStream.width || !videoStream.height) {
     throw new Error('Could not determine video dimensions');
@@ -95,6 +96,7 @@ export async function probeVideo(filePath: string): Promise<VideoMetadata> {
   const codec = videoStream.codec_name || 'unknown';
   const audioCodec = audioStream?.codec_name || 'aac';
   const sampleRate = Number(audioStream?.sample_rate) || 48000;
+  const hasAudioTrack = Boolean(audioStream);
 
   const metadata: VideoMetadata = {
     filePath,
@@ -107,6 +109,7 @@ export async function probeVideo(filePath: string): Promise<VideoMetadata> {
     fps,
     audioCodec,
     sampleRate,
+    hasAudioTrack,
   };
 
   return metadata;
