@@ -700,19 +700,21 @@ export default function PresetSelector({
                     <td>59.94</td>
                     <td>{preset.videoCodec.toUpperCase()} / {preset.container.toUpperCase()}</td>
                     <td>{preset.audioCodec.toUpperCase()} @ {preset.audioBitrate || 320} kbps</td>
-                    <td className="preset-row-actions">
-                      <button
-                        className="btn btn-small btn-secondary"
-                        onClick={() => handleDuplicatePreset(preset)}
-                      >
-                        Duplicate
-                      </button>
-                      <button
-                        className="btn btn-small btn-secondary"
-                        onClick={() => handleEditPreset(preset)}
-                      >
-                        Edit
-                      </button>
+                    <td className="preset-row-actions-cell">
+                      <div className="preset-row-actions">
+                        <button
+                          className="btn btn-small btn-secondary"
+                          onClick={() => handleDuplicatePreset(preset)}
+                        >
+                          Duplicate
+                        </button>
+                        <button
+                          className="btn btn-small btn-secondary"
+                          onClick={() => handleEditPreset(preset)}
+                        >
+                          Edit
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

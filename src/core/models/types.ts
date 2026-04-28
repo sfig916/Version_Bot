@@ -168,3 +168,29 @@ export interface FileSizeConstraint {
   /** Target bitrate in kbps (calculated) */
   targetBitrate: number;
 }
+
+export interface MediaSiloConfig {
+  authUrl?: string;
+  apiBaseUrl?: string;
+  tenantName?: string;
+}
+
+export interface MediaSiloAuthStatus {
+  configured: boolean;
+  connected: boolean;
+  provider: 'activision-sso';
+  authUrl?: string;
+  apiBaseUrl?: string;
+  tenantName?: string;
+  cachedAssets: number;
+  expiresAt?: string;
+  message?: string;
+}
+
+export interface MediaSiloSyncSummary {
+  totalRefs: number;
+  cached: number;
+  missing: number;
+  missingKeys: string[];
+  message: string;
+}

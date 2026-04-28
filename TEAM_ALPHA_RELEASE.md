@@ -42,6 +42,7 @@
 - [ ] Try to render without selecting presets → should show validation error
 - [ ] Try to render with missing asset file → should show asset resolution error
 - [ ] Monitor error banner for user-friendly messages and recovery steps
+- [ ] Move or rename linked prepend/append/overlay files, then verify the app detects broken links and supports re-linking from the UI
 
 ### Asset Management
 - [ ] Go to "Manage Assets" from the welcome screen

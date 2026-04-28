@@ -289,6 +289,34 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
     }
   };
 
+  const linkMediaSiloAssetPath = async (
+    key: string,
+    mediaSiloId?: string,
+    kind: 'video' | 'image' | 'any' = 'any'
+  ) => {
+    try {
+      const selected = await window.versionBotAPI.selectAssetFile(kind);
+      if (!selected) {
+        return;
+      }
+
+      const result = await window.versionBotAPI.setMediaSiloCachedAssetPath(
+        key,
+        mediaSiloId || null,
+        selected
+      );
+      if (!result.success) {
+        alert(result.error || 'Failed to link MediaSilo asset path');
+        return;
+      }
+
+      alert(`Linked MediaSilo asset key "${key}" to local file:\n${selected}`);
+    } catch (error) {
+      console.error('[AssetLibraryManager] Error linking mediasilo path:', error);
+      alert(`Error linking MediaSilo path: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
   const deleteSlateAsset = (type: 'prepend' | 'append', id: string) => {
     if (!window.confirm('Delete this asset? This cannot be undone.')) return;
     if (type === 'prepend') {
@@ -389,7 +417,7 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                 <button className="btn btn-small btn-secondary" onClick={() => addSlateAsset('prepend')}>
                   Add Local File
                 </button>
-                <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloAsset('prepend')} style={{ display: 'none' }}>
+                <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloAsset('prepend')}>
                   Add MediaSilo
                 </button>
               </div>
@@ -449,6 +477,14 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                           </div>
                         </div>
                         <div className="alm-asset-actions">
+                          {asset.source === 'mediasilo' && (
+                            <button
+                              className="btn btn-small btn-primary"
+                              onClick={() => linkMediaSiloAssetPath(asset.key, asset.mediaSiloId, 'video')}
+                            >
+                              Link Cache File
+                            </button>
+                          )}
                           <button
                             className="btn btn-small btn-secondary"
                             onClick={() => startEditSlate('prepend', asset)}
@@ -479,7 +515,7 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                 <button className="btn btn-small btn-secondary" onClick={() => addSlateAsset('append')}>
                   Add Local File
                 </button>
-                <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloAsset('append')} style={{ display: 'none' }}>
+                <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloAsset('append')}>
                   Add MediaSilo
                 </button>
               </div>
@@ -539,6 +575,14 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                           </div>
                         </div>
                         <div className="alm-asset-actions">
+                          {asset.source === 'mediasilo' && (
+                            <button
+                              className="btn btn-small btn-primary"
+                              onClick={() => linkMediaSiloAssetPath(asset.key, asset.mediaSiloId, 'video')}
+                            >
+                              Link Cache File
+                            </button>
+                          )}
                           <button
                             className="btn btn-small btn-secondary"
                             onClick={() => startEditSlate('append', asset)}
@@ -569,7 +613,7 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                 <button className="btn btn-small btn-secondary" onClick={() => addOverlayAsset()}>
                   Add Local File
                 </button>
-                <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloOverlay()} style={{ display: 'none' }}>
+                <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloOverlay()}>
                   Add MediaSilo
                 </button>
               </div>
@@ -628,6 +672,14 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                             </div>
                           </div>
                           <div className="alm-asset-actions">
+                            {asset.source === 'mediasilo' && (
+                              <button
+                                className="btn btn-small btn-primary"
+                                onClick={() => linkMediaSiloAssetPath(asset.key, asset.mediaSiloId, 'image')}
+                              >
+                                Link Cache File
+                              </button>
+                            )}
                             <button
                               className="btn btn-small btn-secondary"
                               onClick={() => startEditOverlay(asset)}

@@ -123,6 +123,10 @@
   font-weight: 600;
 }
 
+.preset-row-actions-cell {
+  white-space: nowrap;
+}
+
 .preset-row-actions {
   display: flex;
   gap: 0.4rem;

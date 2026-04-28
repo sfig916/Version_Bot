@@ -71,6 +71,10 @@
 }
 
 .pm-actions-cell {
+  white-space: nowrap;
+}
+
+.pm-actions-row {
   display: flex;
   gap: 0.4rem;
   align-items: center;

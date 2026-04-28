@@ -7,6 +7,9 @@ import {
   VideoMetadata,
   OutputPreset,
   RenderPlan,
+  MediaSiloConfig,
+  MediaSiloAuthStatus,
+  MediaSiloSyncSummary,
 } from '../core/models/types';
 
 export interface JobProgress {
@@ -79,6 +82,38 @@ const api = {
 
   setAssetOverride: (key: string, filePath: string | null) =>
     ipcRenderer.invoke('set-asset-override', key, filePath) as Promise<APIResult<Record<string, string>>>,
+
+  // MediaSilo auth and cache
+  getMediaSiloStatus: () =>
+    ipcRenderer.invoke('get-mediasilo-status') as Promise<APIResult<MediaSiloAuthStatus>>,
+
+  setMediaSiloConfig: (config: Partial<MediaSiloConfig>) =>
+    ipcRenderer.invoke('set-mediasilo-config', config) as Promise<APIResult<MediaSiloConfig>>,
+
+  startMediaSiloLogin: () =>
+    ipcRenderer.invoke('start-mediasilo-login') as Promise<APIResult<void>>,
+
+  completeMediaSiloLogin: (accessToken: string, refreshToken?: string, expiresAt?: string) =>
+    ipcRenderer.invoke(
+      'complete-mediasilo-login',
+      accessToken,
+      refreshToken,
+      expiresAt
+    ) as Promise<APIResult<MediaSiloAuthStatus>>,
+
+  logoutMediaSilo: () =>
+    ipcRenderer.invoke('logout-mediasilo') as Promise<APIResult<void>>,
+
+  syncMediaSiloAssets: () =>
+    ipcRenderer.invoke('sync-mediasilo-assets') as Promise<APIResult<MediaSiloSyncSummary>>,
+
+  setMediaSiloCachedAssetPath: (key: string, mediaSiloId: string | null, localPath: string) =>
+    ipcRenderer.invoke(
+      'set-mediasilo-cached-asset-path',
+      key,
+      mediaSiloId,
+      localPath
+    ) as Promise<APIResult<void>>,
 
   // Asset libraries (file-based, persistent)
   getAssetLibrary: (libraryName: string) =>

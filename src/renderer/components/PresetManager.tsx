@@ -414,9 +414,11 @@ export default function PresetManager({
               <td>{p.videoCodec.toUpperCase()} / {p.container.toUpperCase()}</td>
               <td>{p.audioCodec.toUpperCase()} @ {p.audioBitrate || 320} kbps</td>
               <td className="pm-actions-cell">
-                <button className="btn btn-small btn-secondary" onClick={() => duplicatePreset(p)}>Duplicate</button>
-                <button className="btn btn-small btn-secondary" onClick={() => openEdit(p)}>Edit</button>
-                <button className="btn btn-small btn-danger" onClick={() => confirmDelete(p)}>Delete</button>
+                <div className="pm-actions-row">
+                  <button className="btn btn-small btn-secondary" onClick={() => duplicatePreset(p)}>Duplicate</button>
+                  <button className="btn btn-small btn-secondary" onClick={() => openEdit(p)}>Edit</button>
+                  <button className="btn btn-small btn-danger" onClick={() => confirmDelete(p)}>Delete</button>
+                </div>
               </td>
             </tr>
           ))}
