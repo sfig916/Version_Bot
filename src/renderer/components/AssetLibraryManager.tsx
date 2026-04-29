@@ -160,33 +160,146 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
     window.versionBotAPI.saveAssetLibrary(OVERLAY_LIBRARY_KEY, next);
   };
 
+  const getDirectoryPath = (filePath: string): string => {
+    const normalized = filePath.replace(/\\/g, '/');
+    const index = normalized.lastIndexOf('/');
+    return index >= 0 ? normalized.slice(0, index) : '';
+  };
+
+  const toOsPath = (filePath: string): string => filePath.replace(/\//g, '\\');
+
+  const normalizePathForCompare = (filePath: string): string =>
+    filePath.replace(/\\/g, '/').toLowerCase();
+
+  type RelinkableAsset = {
+    id: string;
+    key: string;
+    path?: string;
+  };
+
+  const getAllRelinkableAssets = (): RelinkableAsset[] => [
+    ...prependLib.map((a) => ({ id: a.id, key: a.key, path: a.path })),
+    ...appendLib.map((a) => ({ id: a.id, key: a.key, path: a.path })),
+    ...overlayLib.map((a) => ({ id: a.id, key: a.key, path: a.path })),
+  ];
+
   const relinkAsset = async (id: string, kind: 'video' | 'image' | 'any') => {
     const selected = await window.versionBotAPI.selectAssetFile(kind);
     if (!selected) return;
 
-    // Update path in whichever library contains this id
-    const pIdx = prependLib.findIndex((a) => a.id === id);
-    if (pIdx !== -1) {
-      const updated = prependLib.map((a) => a.id === id ? { ...a, path: selected } : a);
-      persistPrepend(updated);
-    }
-    const aIdx = appendLib.findIndex((a) => a.id === id);
-    if (aIdx !== -1) {
-      const updated = appendLib.map((a) => a.id === id ? { ...a, path: selected } : a);
-      persistAppend(updated);
-    }
-    const oIdx = overlayLib.findIndex((a) => a.id === id);
-    if (oIdx !== -1) {
-      const updated = overlayLib.map((a) => a.id === id ? { ...a, path: selected } : a);
-      persistOverlay(updated);
+    const allAssets = getAllRelinkableAssets();
+    const targetAsset = allAssets.find((asset) => asset.id === id);
+    const oldPath = targetAsset?.path;
+    const pathUpdatesById = new Map<string, string>([[id, selected]]);
+
+    let nextPrepend = prependLib;
+    let nextAppend = appendLib;
+    let nextOverlay = overlayLib;
+
+    const applyPathUpdate = (assetId: string, nextPath: string) => {
+      if (nextPrepend.some((a) => a.id === assetId)) {
+        nextPrepend = nextPrepend.map((a) => (a.id === assetId ? { ...a, path: nextPath } : a));
+      }
+      if (nextAppend.some((a) => a.id === assetId)) {
+        nextAppend = nextAppend.map((a) => (a.id === assetId ? { ...a, path: nextPath } : a));
+      }
+      if (nextOverlay.some((a) => a.id === assetId)) {
+        nextOverlay = nextOverlay.map((a) => (a.id === assetId ? { ...a, path: nextPath } : a));
+      }
+    };
+
+    // Always update the single selected asset first.
+    applyPathUpdate(id, selected);
+
+    let autoRelinkCount = 0;
+    const autoRelinkedIds = new Set<string>();
+
+    if (oldPath) {
+      const oldDir = getDirectoryPath(oldPath);
+      const newDir = getDirectoryPath(selected);
+
+      const canAttemptBulkRelink = oldDir.length > 0
+        && newDir.length > 0
+        && normalizePathForCompare(oldDir) !== normalizePathForCompare(newDir);
+
+      if (canAttemptBulkRelink) {
+        const updates = await Promise.all(
+          allAssets
+            .filter((asset) => asset.id !== id && asset.path && missingPaths.has(asset.id))
+            .map(async (asset) => {
+              const assetPath = asset.path!;
+              const normalizedAssetPath = assetPath.replace(/\\/g, '/');
+              const normalizedOldDir = oldDir.replace(/\\/g, '/');
+
+              if (!normalizePathForCompare(normalizedAssetPath).startsWith(`${normalizePathForCompare(normalizedOldDir)}/`)) {
+                return null;
+              }
+
+              const relativeSuffix = normalizedAssetPath.slice(normalizedOldDir.length + 1);
+
+              if (!relativeSuffix) {
+                return null;
+              }
+
+              const normalizedNewDir = newDir.replace(/\\/g, '/');
+              const candidatePath = toOsPath(`${normalizedNewDir}/${relativeSuffix}`);
+              const exists = await window.versionBotAPI.checkFileExists(candidatePath);
+              if (!exists.success || exists.data !== true) {
+                return null;
+              }
+
+              return { id: asset.id, path: candidatePath };
+            })
+        );
+
+        for (const update of updates) {
+          if (!update) continue;
+          applyPathUpdate(update.id, update.path);
+          pathUpdatesById.set(update.id, update.path);
+          autoRelinkCount += 1;
+          autoRelinkedIds.add(update.id);
+        }
+      }
     }
 
-    // Clear missing state for this asset
+    const prependChanged = nextPrepend !== prependLib;
+    const appendChanged = nextAppend !== appendLib;
+    const overlayChanged = nextOverlay !== overlayLib;
+
+    if (prependChanged) {
+      persistPrepend(nextPrepend);
+    }
+    if (appendChanged) {
+      persistAppend(nextAppend);
+    }
+    if (overlayChanged) {
+      persistOverlay(nextOverlay);
+    }
+
+    // Persist path updates as asset overrides so stale preset assetPath values can
+    // still resolve through the updated key mapping.
+    const assetById = new Map(allAssets.map((asset) => [asset.id, asset] as const));
+    await Promise.all(
+      Array.from(pathUpdatesById.entries()).map(async ([assetId, updatedPath]) => {
+        const asset = assetById.get(assetId);
+        if (!asset?.key) return;
+        await window.versionBotAPI.setAssetOverride(asset.key, updatedPath);
+      })
+    );
+
+    // Clear missing state for re-linked assets.
     setMissingPaths((prev) => {
       const next = new Set(prev);
       next.delete(id);
+      for (const autoId of autoRelinkedIds) {
+        next.delete(autoId);
+      }
       return next;
     });
+
+    if (autoRelinkCount > 0) {
+      alert(`Re-linked selected file and ${autoRelinkCount} additional missing asset path${autoRelinkCount === 1 ? '' : 's'} from the moved folder.`);
+    }
   };
 
   const detectDuration = async (path: string): Promise<number> => {

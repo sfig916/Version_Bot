@@ -62,16 +62,89 @@ async function archiveFolder(sourceDir, outputPath) {
 }
 
 function getSourceUserDataDir(projectRoot) {
+  const YAML = require('yaml');
   const appDataDir = process.env.APPDATA;
   const candidates = [];
 
   if (appDataDir) {
     candidates.push(path.join(appDataDir, 'version-bot'));
+    candidates.push(path.join(appDataDir, 'Electron'));
   }
 
   candidates.push(path.join(projectRoot, 'portable-user-data'));
 
-  return candidates.find((candidateDir) => fs.existsSync(candidateDir));
+  function scoreCandidate(sourceUserData) {
+    let configured = 0;
+    let existing = 0;
+
+    const resolveConfiguredAssetPath = (assetPath) => (
+      path.isAbsolute(assetPath) ? assetPath : path.resolve(sourceUserData, assetPath)
+    );
+
+    const register = (assetPath) => {
+      if (!assetPath || typeof assetPath !== 'string') return;
+      configured++;
+      if (fs.existsSync(resolveConfiguredAssetPath(assetPath))) {
+        existing++;
+      }
+    };
+
+    const presetsPath = path.join(sourceUserData, 'presets', 'user-presets.yaml');
+    if (fs.existsSync(presetsPath)) {
+      try {
+        const doc = YAML.parse(fs.readFileSync(presetsPath, 'utf-8'));
+        const presets = doc?.presets || [];
+        for (const preset of presets) {
+          for (const slot of ['introSlate', 'outroSlate', 'overlay']) {
+            register(preset?.[slot]?.assetPath);
+          }
+        }
+      } catch {
+        // ignore parse errors for scoring
+      }
+    }
+
+    for (const fileName of [
+      'version-bot-prepend-library.json',
+      'version-bot-append-library.json',
+      'version-bot-overlay-library.json',
+    ]) {
+      const filePath = path.join(sourceUserData, fileName);
+      if (!fs.existsSync(filePath)) continue;
+      try {
+        const items = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        if (!Array.isArray(items)) continue;
+        for (const item of items) {
+          register(item?.path);
+        }
+      } catch {
+        // ignore parse errors for scoring
+      }
+    }
+
+    return { configured, existing };
+  }
+
+  const existingCandidates = candidates.filter((candidateDir) => fs.existsSync(candidateDir));
+  if (!existingCandidates.length) {
+    return undefined;
+  }
+
+  let best = existingCandidates[0];
+  let bestScore = scoreCandidate(best);
+
+  for (const candidate of existingCandidates.slice(1)) {
+    const score = scoreCandidate(candidate);
+    if (
+      score.existing > bestScore.existing
+      || (score.existing === bestScore.existing && score.configured > bestScore.configured)
+    ) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+
+  return best;
 }
 
 /**

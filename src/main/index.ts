@@ -424,12 +424,34 @@ function readAssetOverrides(): AssetOverrideMap {
 
   try {
     const raw = fs.readFileSync(filePath, 'utf-8');
-    const parsed = JSON.parse(raw) as AssetOverrideMap;
-    return Object.fromEntries(
-      Object.entries(parsed).filter(
+    const parseCandidate = (input: string): AssetOverrideMap | undefined => {
+      try {
+        return JSON.parse(input) as AssetOverrideMap;
+      } catch {
+        return undefined;
+      }
+    };
+
+    const directParsed = parseCandidate(raw);
+    const normalizedParsed = directParsed
+      ?? parseCandidate(raw.replace(/^\uFEFF/, '').replace(/^[^\{\[]+/, ''));
+
+    if (!normalizedParsed) {
+      throw new Error('Asset overrides JSON is invalid.');
+    }
+
+    const sanitized = Object.fromEntries(
+      Object.entries(normalizedParsed).filter(
         ([key, value]) => typeof key === 'string' && typeof value === 'string'
       )
     );
+
+    // Self-heal any malformed leading bytes/BOM by rewriting clean JSON.
+    if (!directParsed) {
+      writeAssetOverrides(sanitized);
+    }
+
+    return sanitized;
   } catch (error) {
     logger.warn('Failed to read asset overrides, using empty map', {
       error: error instanceof Error ? error.message : String(error),
@@ -452,19 +474,81 @@ function resolveAssetPath(
   assetRef: AssetReference | undefined,
   overrides: AssetOverrideMap
 ): string | undefined {
+  const toResolvedPath = (rawPath: string | undefined): string | undefined => {
+    const trimmed = rawPath?.trim();
+    if (!trimmed) return undefined;
+    return path.isAbsolute(trimmed) ? trimmed : resolveRelativePath(trimmed);
+  };
+
+  const pickExistingPath = (...candidates: Array<string | undefined>): string | undefined => {
+    for (const candidate of candidates) {
+      if (candidate && fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    return undefined;
+  };
+
+  const normalizeFileName = (filePath: string | undefined): string | undefined => {
+    if (!filePath) return undefined;
+    const extension = path.extname(filePath).toLowerCase();
+    const baseName = path.basename(filePath, extension)
+      .toLowerCase()
+      .replace(/\s*\(\d+\)$/, '');
+    return `${baseName}${extension}`;
+  };
+
+  const findMatchingOverrideByFileName = (
+    targetPath: string | undefined,
+    resolvedOverrides: Array<string | undefined>
+  ): string | undefined => {
+    const normalizedTargetName = normalizeFileName(targetPath);
+    if (!normalizedTargetName) {
+      return undefined;
+    }
+
+    for (const candidate of resolvedOverrides) {
+      if (!candidate || !fs.existsSync(candidate)) {
+        continue;
+      }
+      if (normalizeFileName(candidate) === normalizedTargetName) {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  };
+
   const directPath = explicitPath?.trim();
-  if (directPath) {
-    // Resolve relative paths from userData (supports portable distribution)
-    return path.isAbsolute(directPath) ? directPath : resolveRelativePath(directPath);
-  }
+  const resolvedDirectPath = toResolvedPath(directPath);
+
+  const resolvedOverrideValues = Object.values(overrides).map((value) =>
+    toResolvedPath(value)
+  );
 
   if (!assetRef) {
-    return undefined;
+    return resolvedDirectPath;
   }
 
   const overridePath = overrides[assetRef.key]?.trim();
-  if (overridePath) {
-    return path.isAbsolute(overridePath) ? overridePath : resolveRelativePath(overridePath);
+  const resolvedOverridePath = toResolvedPath(overridePath);
+
+  // Prefer paths that actually exist, so stale absolute preset paths can fall back
+  // to current overrides after assets move.
+  const existingPath = pickExistingPath(resolvedDirectPath, resolvedOverridePath);
+  if (existingPath) {
+    return existingPath;
+  }
+
+  // Legacy presets may reference a duplicate filename variant (e.g. "(1)") with
+  // a key that no longer exists in current libraries. In that case, recover by
+  // matching against any existing override with the same normalized filename.
+  const matchedOverridePath = findMatchingOverrideByFileName(
+    resolvedDirectPath,
+    resolvedOverrideValues
+  );
+  if (matchedOverridePath) {
+    return matchedOverridePath;
   }
 
   if (assetRef.source === 'mediasilo') {
@@ -478,7 +562,8 @@ function resolveAssetPath(
     return path.resolve(process.cwd(), assetRef.fallbackRelativePath);
   }
 
-  return undefined;
+  // No existing candidate; return the best available path for clearer downstream errors.
+  return resolvedDirectPath || resolvedOverridePath;
 }
 
 function resolveSlateConfig(
