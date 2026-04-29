@@ -20,6 +20,35 @@ import RenderPlanner from './RenderPlanner';
 import ErrorBanner from './ErrorBanner';
 import './App.css';
 
+class AssetLibraryErrorBoundary extends React.Component<
+  { onBack: () => void; children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { onBack: () => void; children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: '2rem', color: '#c62828' }}>
+          <button onClick={this.props.onBack} style={{ marginBottom: '1rem' }}>← Back</button>
+          <h3>Asset Library Error</h3>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.85rem', background: '#fff3e0', padding: '1rem', borderRadius: '4px' }}>
+            {this.state.error.message}
+            {'\n\n'}
+            {this.state.error.stack}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 type AppView = 'video-select' | 'preset-select' | 'render-plan' | 'exporting' | 'preset-manager' | 'asset-library-manager';
 
 interface JobProgressEvent {
@@ -141,8 +170,9 @@ export default function App() {
       const status = statusResult.data;
 
       const configResult = await window.versionBotAPI.setMediaSiloConfig({
-        authUrl: status.authUrl || DEFAULT_MEDIASILO_AUTH_URL,
-        tenantName: status.tenantName || DEFAULT_MEDIASILO_TENANT_LABEL,
+        authUrl: DEFAULT_MEDIASILO_AUTH_URL,
+        tenantName: DEFAULT_MEDIASILO_TENANT_LABEL,
+        apiBaseUrl: status.apiBaseUrl,
       });
 
       if (!configResult.success) {
@@ -157,7 +187,7 @@ export default function App() {
       }
 
       alert(
-        'MediaSilo login opened in your browser. Once API access is enabled, this flow will automatically complete in-app and sync assets.'
+        'MediaSilo login opened in your browser. Sign in with your Activision account to connect Version Bot to the shared Activision MediaSilo project. Once API access is enabled, this flow will automatically complete in-app and sync assets.'
       );
       await refreshMediaSiloStatus();
     } catch (error) {
@@ -601,15 +631,15 @@ export default function App() {
 
             <div className="media-silo-controls">
               <span className={`media-silo-status ${mediaSiloStatus?.connected ? 'connected' : 'disconnected'}`}>
-                MediaSilo: {mediaSiloStatus?.connected ? 'Connected' : mediaSiloStatus?.configured ? 'Configured' : 'Not configured'}
+                MediaSilo: {mediaSiloStatus?.connected ? 'Connected to Activision' : 'Activision sign-in required'}
               </span>
               <button
                 className="btn btn-nav"
                 onClick={handleConfigureAndLoginMediaSilo}
                 disabled={isMediaSiloBusy}
-                title="Configure/login with MediaSilo (Activision SSO)"
+                title="Sign in with your Activision account for the shared MediaSilo project"
               >
-                🔐 Connect
+                🔐 Sign In
               </button>
               <button
                 className="btn btn-nav"
@@ -619,6 +649,9 @@ export default function App() {
               >
                 🔄 Sync
               </button>
+              {!mediaSiloStatus?.connected && mediaSiloStatus?.message && (
+                <span className="media-silo-help-text">{mediaSiloStatus.message}</span>
+              )}
               {mediaSiloStatus?.connected && (
                 <button
                   className="btn btn-nav"
@@ -666,9 +699,11 @@ export default function App() {
         )}
 
         {state.currentView === 'asset-library-manager' && (
-          <AssetLibraryManager
-            onBack={() => setState((prev) => ({ ...prev, currentView: 'video-select' }))}
-          />
+          <AssetLibraryErrorBoundary onBack={() => setState((prev) => ({ ...prev, currentView: 'video-select' }))}>
+            <AssetLibraryManager
+              onBack={() => setState((prev) => ({ ...prev, currentView: 'video-select' }))}
+            />
+          </AssetLibraryErrorBoundary>
         )}
 
         {state.currentView === 'preset-select' && state.selectedVideo && (

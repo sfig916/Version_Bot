@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
 /**
- * Packaging script: Creates a proper portable distribution
- * 
- * Usage: npm run package:portable
- * Output: dist/release/Version-Bot-portable/ (folder)
- *         dist/release/Version-Bot-portable.zip (archive)
+ * Packaging script: Creates a macOS zip distribution with bundled user-data.
+ *
+ * Usage: npm run package:macos
+ * Output: dist/release/Version-Bot-macOS/ (folder)
+ *         dist/release/Version-Bot-macOS.zip (archive)
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 
-// Colors for console output
 const colors = {
   reset: '\x1b[0m',
   green: '\x1b[32m',
@@ -38,7 +38,24 @@ function logError(message) {
   process.exit(1);
 }
 
-async function archiveFolder(sourceDir, outputPath) {
+function copyDir(src, dst) {
+  if (!fs.existsSync(dst)) {
+    fs.mkdirSync(dst, { recursive: true });
+  }
+
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const dstPath = path.join(dst, entry.name);
+    if (entry.isDirectory()) {
+      copyDir(srcPath, dstPath);
+    } else {
+      fs.copyFileSync(srcPath, dstPath);
+    }
+  }
+}
+
+async function archiveFolder(sourceDir, outputPath, rootName) {
   const archiver = require('archiver');
   const output = fs.createWriteStream(outputPath);
   const archive = archiver('zip', { zlib: { level: 6 } });
@@ -56,50 +73,53 @@ async function archiveFolder(sourceDir, outputPath) {
     });
 
     archive.pipe(output);
-    archive.directory(sourceDir, 'Version-Bot-portable');
+    archive.directory(sourceDir, rootName);
     archive.finalize();
   });
 }
 
-function getSourceUserDataDir(projectRoot) {
-  const appDataDir = process.env.APPDATA;
-  const candidates = [];
-
-  if (appDataDir) {
-    candidates.push(path.join(appDataDir, 'version-bot'));
-  }
-
-  candidates.push(path.join(projectRoot, 'portable-user-data'));
+function getLiveUserDataDir() {
+  const appSupportDir = path.join(os.homedir(), 'Library', 'Application Support');
+  const candidates = [
+    path.join(appSupportDir, 'version-bot'),
+    path.join(appSupportDir, 'Version Bot'),
+    path.join(appSupportDir, 'Electron'),
+  ];
 
   return candidates.find((candidateDir) => fs.existsSync(candidateDir));
 }
 
-/**
- * Bundle user data (presets + asset libraries) and copy all referenced media
- * assets into the portable distribution's user-data/ directory.
- *
- * The main process detects user-data/ next to the exe and uses it as userData,
- * and resolves relative asset paths from that directory.
- */
-async function bundlePortableUserData(portableDir, projectRoot) {
+function getSourceUserDataDir(projectRoot) {
+  const candidates = [];
+
+  // Prefer project seed data so builds from a zipped source tree are deterministic.
+  candidates.push(path.join(projectRoot, 'portable-user-data'));
+
+  const liveUserData = getLiveUserDataDir();
+  if (liveUserData) {
+    candidates.push(liveUserData);
+  }
+
+  return candidates.find((candidateDir) => fs.existsSync(candidateDir));
+}
+
+async function bundlePortableUserData(distributionDir, projectRoot) {
   const YAML = require('yaml');
 
   const sourceUserData = getSourceUserDataDir(projectRoot);
   if (!sourceUserData) {
-    log('  WARNING: No source user data found (APPDATA or portable-user-data), skipping user data bundling', 'yellow');
+    log('  WARNING: No source user data found (macOS App Support or portable-user-data), skipping user data bundling', 'yellow');
     return;
   }
   log(`  Source user data: ${sourceUserData}`);
 
-  const portableUserData = path.join(portableDir, 'user-data');
+  const portableUserData = path.join(distributionDir, 'user-data');
   const portableAssetsDir = path.join(portableUserData, 'assets');
   fs.mkdirSync(portableAssetsDir, { recursive: true });
   fs.mkdirSync(path.join(portableUserData, 'presets'), { recursive: true });
 
-  // Build a map of source paths → relative destination paths (assets/<filename>)
-  // Handles filename collisions by appending a counter suffix.
-  const pathMap = new Map(); // absoluteSrcPath → 'assets/filename.ext'
-  const configuredPathMap = new Map(); // configured path string → 'assets/filename.ext'
+  const pathMap = new Map(); // absoluteSrcPath -> assets/filename.ext
+  const configuredPathMap = new Map(); // configured path -> assets/filename.ext
   const usedFilenames = new Set();
 
   function resolveConfiguredAssetPath(assetPath) {
@@ -125,13 +145,13 @@ async function bundlePortableUserData(portableDir, projectRoot) {
       while (usedFilenames.has(`${base}_${counter}${ext}`.toLowerCase())) counter++;
       filename = `${base}_${counter}${ext}`;
     }
+
     usedFilenames.add(filename.toLowerCase());
     const relPath = `assets/${filename}`;
     pathMap.set(srcPath, relPath);
     configuredPathMap.set(configuredPath, relPath);
   }
 
-  // ---- Collect paths from live user-presets.yaml ----
   const livePresetsPath = path.join(sourceUserData, 'presets', 'user-presets.yaml');
   let presetsDoc = null;
   if (fs.existsSync(livePresetsPath)) {
@@ -148,7 +168,6 @@ async function bundlePortableUserData(portableDir, projectRoot) {
     }
   }
 
-  // ---- Collect paths from asset library JSON files ----
   const libraryNames = [
     'version-bot-prepend-library.json',
     'version-bot-append-library.json',
@@ -157,22 +176,21 @@ async function bundlePortableUserData(portableDir, projectRoot) {
   const liveLibraries = {};
   for (const libName of libraryNames) {
     const libPath = path.join(sourceUserData, libName);
-    if (fs.existsSync(libPath)) {
-      try {
-        const items = JSON.parse(fs.readFileSync(libPath, 'utf-8'));
-        liveLibraries[libName] = items;
-        for (const item of items) {
-          if (item.path) {
-            registerAssetPath(item.path);
-          }
+    if (!fs.existsSync(libPath)) continue;
+
+    try {
+      const items = JSON.parse(fs.readFileSync(libPath, 'utf-8'));
+      liveLibraries[libName] = items;
+      for (const item of items) {
+        if (item.path) {
+          registerAssetPath(item.path);
         }
-      } catch {
-        log(`  WARNING: Could not parse ${libName}`, 'yellow');
       }
+    } catch {
+      log(`  WARNING: Could not parse ${libName}`, 'yellow');
     }
   }
 
-  // ---- Copy asset files ----
   let copied = 0;
   let missing = 0;
   for (const [srcPath, relDst] of pathMap) {
@@ -188,7 +206,6 @@ async function bundlePortableUserData(portableDir, projectRoot) {
   }
   logSuccess(`Copied ${copied} asset file(s) to user-data/assets/ (${missing} missing)`);
 
-  // ---- Rewrite and write user-presets.yaml ----
   if (presetsDoc) {
     const presets = presetsDoc.presets || [];
     for (const preset of presets) {
@@ -200,12 +217,12 @@ async function bundlePortableUserData(portableDir, projectRoot) {
         }
       }
     }
+
     const portablePresetsPath = path.join(portableUserData, 'presets', 'user-presets.yaml');
     fs.writeFileSync(portablePresetsPath, YAML.stringify(presetsDoc), 'utf-8');
     logSuccess('Wrote portable user-presets.yaml with relative asset paths');
   }
 
-  // ---- Rewrite and write asset library JSON files ----
   for (const [libName, items] of Object.entries(liveLibraries)) {
     const rewritten = items.map((item) => {
       const rel = item.path && (
@@ -221,95 +238,65 @@ async function bundlePortableUserData(portableDir, projectRoot) {
 }
 
 async function main() {
+  if (process.platform !== 'darwin') {
+    logError('npm run package:macos must be run on macOS.');
+  }
+
   const projectRoot = path.resolve(__dirname, '..');
   const distDir = path.join(projectRoot, 'dist');
   const releaseDir = path.join(distDir, 'release');
-  const winUnpackedDir = path.join(distDir, 'win-unpacked');
-  const portableDir = path.join(releaseDir, 'Version-Bot-portable');
-  const zipPath = path.join(releaseDir, 'Version-Bot-portable.zip');
+  const macAppSourceDir = path.join(distDir, 'mac', 'Version Bot.app');
+  const macReleaseDir = path.join(releaseDir, 'Version-Bot-macOS');
+  const macReleaseAppDir = path.join(macReleaseDir, 'Version Bot.app');
+  const zipPath = path.join(releaseDir, 'Version-Bot-macOS.zip');
 
   try {
-    // Step 1: Build the app
-    logStep('1/6', 'Building application...');
+    logStep('1/5', 'Building application...');
     execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' });
     logSuccess('Build completed');
 
-    // Step 2: Create win-unpacked app bundle
-    logStep('2/6', 'Creating win-unpacked app bundle...');
-    execSync('npx electron-builder --dir --win --publish never', {
+    logStep('2/5', 'Creating macOS app bundle...');
+    execSync('npx electron-builder --dir --mac --publish never', {
       cwd: projectRoot,
       stdio: 'inherit',
     });
-    logSuccess('win-unpacked bundle created');
-
-    // Step 3: Verify build output
-    logStep('3/6', 'Verifying build output...');
-    if (!fs.existsSync(winUnpackedDir)) {
-      logError(`Build output not found: ${winUnpackedDir}`);
+    if (!fs.existsSync(macAppSourceDir)) {
+      logError(`Build output not found: ${macAppSourceDir}`);
     }
-    logSuccess('Build output verified');
+    logSuccess('macOS app bundle verified');
 
-    // Step 4: Create portable folder
-    logStep('4/6', 'Creating portable distribution folder...');
-
-    // Clean up old portable folder if it exists
-    if (fs.existsSync(portableDir)) {
-      fs.rmSync(portableDir, { recursive: true, force: true });
-      log('Cleaned up previous portable folder');
+    logStep('3/5', 'Creating macOS distribution folder...');
+    if (fs.existsSync(macReleaseDir)) {
+      fs.rmSync(macReleaseDir, { recursive: true, force: true });
+      log('Cleaned up previous macOS release folder');
     }
-
-    // Ensure release directory exists
     if (!fs.existsSync(releaseDir)) {
       fs.mkdirSync(releaseDir, { recursive: true });
     }
+    copyDir(macAppSourceDir, macReleaseAppDir);
+    logSuccess(`macOS release folder created at ${path.relative(projectRoot, macReleaseDir)}`);
 
-    // Copy win-unpacked to portable folder
-    function copyDir(src, dst) {
-      if (!fs.existsSync(dst)) {
-        fs.mkdirSync(dst, { recursive: true });
-      }
-      const files = fs.readdirSync(src);
-      files.forEach((file) => {
-        const srcPath = path.join(src, file);
-        const dstPath = path.join(dst, file);
-        if (fs.statSync(srcPath).isDirectory()) {
-          copyDir(srcPath, dstPath);
-        } else {
-          fs.copyFileSync(srcPath, dstPath);
-        }
-      });
-    }
+    logStep('4/5', 'Bundling presets, asset libraries, and media files...');
+    await bundlePortableUserData(macReleaseDir, projectRoot);
 
-    copyDir(winUnpackedDir, portableDir);
-    logSuccess(`Portable folder created at ${path.relative(projectRoot, portableDir)}`);
-
-    // Step 5: Bundle user data (presets + asset libraries + media files)
-    logStep('5/6', 'Bundling presets, asset libraries, and media files...');
-    await bundlePortableUserData(portableDir, projectRoot);
-
-    // Step 6: Create zip archive
-    logStep('6/6', 'Creating zip archive...');
-
-    // Clean up old zip if it exists
+    logStep('5/5', 'Creating zip archive...');
     if (fs.existsSync(zipPath)) {
       fs.unlinkSync(zipPath);
     }
+    await archiveFolder(macReleaseDir, zipPath, 'Version-Bot-macOS');
 
-    await archiveFolder(portableDir, zipPath);
-
-    // Final summary
     log('\n' + '='.repeat(60), 'green');
     logSuccess('Packaging complete!');
     log('\nDistributable files:', 'yellow');
-    log(`  📁 Folder: dist/release/Version-Bot-portable/`, 'yellow');
-    log(`  📦 Archive: dist/release/Version-Bot-portable.zip`, 'yellow');
+    log('  Folder: dist/release/Version-Bot-macOS/', 'yellow');
+    log('  Archive: dist/release/Version-Bot-macOS.zip', 'yellow');
     log('\nInstructions for distribution:', 'yellow');
-    log(`  1. Share Version-Bot-portable.zip with team members`, 'yellow');
-    log(`  2. They extract the zip to any folder`, 'yellow');
-    log(`  3. Run: Version-Bot-portable/Version Bot.exe`, 'yellow');
-    log(`  4. Presets and assets are pre-configured in user-data/`, 'yellow');
+    log('  1. Run npm run package:macos on a Mac', 'yellow');
+    log('  2. Share Version-Bot-macOS.zip with Mac users', 'yellow');
+    log('  3. They extract the zip and open Version Bot.app', 'yellow');
+    log('  4. If Gatekeeper warns, right-click the app and choose Open', 'yellow');
+    log('  5. Presets and assets are pre-configured in user-data/', 'yellow');
     log('='.repeat(60) + '\n', 'green');
-
   } catch (error) {
     logError(error.message);
   }

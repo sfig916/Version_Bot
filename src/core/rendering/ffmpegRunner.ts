@@ -32,8 +32,24 @@ export type CompleteCallback = (result: JobResult) => void;
  * Get ffmpeg binary path (prefers bundled ffmpeg-static)
  */
 function getFFmpegPath(): string {
+  function resolvePackagedBinaryPath(candidatePath: string): string {
+    if (candidatePath.includes('app.asar')) {
+      const unpackedPath = candidatePath.replace('app.asar', 'app.asar.unpacked');
+      if (unpackedPath !== candidatePath && fs.existsSync(unpackedPath)) {
+        return unpackedPath;
+      }
+    }
+
+    if (fs.existsSync(candidatePath)) {
+      return candidatePath;
+    }
+
+    return candidatePath;
+  }
+
   try {
-    return require('ffmpeg-static') as string;
+    const staticPath = require('ffmpeg-static') as string;
+    return resolvePackagedBinaryPath(staticPath);
   } catch {
     return 'ffmpeg';
   }

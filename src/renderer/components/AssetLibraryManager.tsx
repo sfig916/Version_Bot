@@ -66,6 +66,8 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
   const [editKey, setEditKey] = useState('');
   const [promptDialog, setPromptDialog] = useState<PromptDialogState>({ isOpen: false, title: '', label: '', defaultValue: '' });
   const [promptInput, setPromptInput] = useState('');
+  // Set of asset IDs whose file path no longer resolves on disk
+  const [missingPaths, setMissingPaths] = useState<Set<string>>(new Set());
 
   // Custom prompt dialog helper
   const showPrompt = (title: string, label: string, defaultValue: string = ''): Promise<string | null> => {
@@ -112,9 +114,32 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
         window.versionBotAPI.getAssetLibrary(APPEND_LIBRARY_KEY),
         window.versionBotAPI.getAssetLibrary(OVERLAY_LIBRARY_KEY),
       ]);
-      if (pr.success && pr.data) setPrependLib(pr.data as SlateAssetOption[]);
-      if (ar.success && ar.data) setAppendLib(ar.data as SlateAssetOption[]);
-      if (or_.success && or_.data) setOverlayLib(or_.data as OverlayAssetOption[]);
+      const prepend = (pr.success && pr.data ? pr.data : []) as SlateAssetOption[];
+      const append = (ar.success && ar.data ? ar.data : []) as SlateAssetOption[];
+      const overlay = (or_.success && or_.data ? or_.data : []) as OverlayAssetOption[];
+
+      setPrependLib(prepend);
+      setAppendLib(append);
+      setOverlayLib(overlay);
+
+      // Check which asset paths are missing on disk
+      const allAssets = [
+        ...prepend.map((a) => ({ id: a.id, path: a.path })),
+        ...append.map((a) => ({ id: a.id, path: a.path })),
+        ...overlay.map((a) => ({ id: a.id, path: a.path })),
+      ];
+      const missing = new Set<string>();
+      await Promise.all(
+        allAssets
+          .filter((a) => a.path) // only local-pathed assets
+          .map(async (a) => {
+            const result = await window.versionBotAPI.checkFileExists(a.path!);
+            if (result.success && result.data === false) {
+              missing.add(a.id);
+            }
+          })
+      );
+      setMissingPaths(missing);
     } catch (error) {
       console.warn('Failed to load asset libraries', error);
     }
@@ -133,6 +158,35 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
   const persistOverlay = (next: OverlayAssetOption[]) => {
     setOverlayLib(next);
     window.versionBotAPI.saveAssetLibrary(OVERLAY_LIBRARY_KEY, next);
+  };
+
+  const relinkAsset = async (id: string, kind: 'video' | 'image' | 'any') => {
+    const selected = await window.versionBotAPI.selectAssetFile(kind);
+    if (!selected) return;
+
+    // Update path in whichever library contains this id
+    const pIdx = prependLib.findIndex((a) => a.id === id);
+    if (pIdx !== -1) {
+      const updated = prependLib.map((a) => a.id === id ? { ...a, path: selected } : a);
+      persistPrepend(updated);
+    }
+    const aIdx = appendLib.findIndex((a) => a.id === id);
+    if (aIdx !== -1) {
+      const updated = appendLib.map((a) => a.id === id ? { ...a, path: selected } : a);
+      persistAppend(updated);
+    }
+    const oIdx = overlayLib.findIndex((a) => a.id === id);
+    if (oIdx !== -1) {
+      const updated = overlayLib.map((a) => a.id === id ? { ...a, path: selected } : a);
+      persistOverlay(updated);
+    }
+
+    // Clear missing state for this asset
+    setMissingPaths((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
   const detectDuration = async (path: string): Promise<number> => {
@@ -464,19 +518,32 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                       </div>
                     ) : (
                       <>
-                        <div className="alm-asset-info">
-                          <h4>{asset.name}</h4>
+                        <div className={`alm-asset-info${missingPaths.has(asset.id) ? ' alm-asset-missing' : ''}`}>
+                          <div className="alm-asset-title-row">
+                            <h4>{asset.name}</h4>
+                            {missingPaths.has(asset.id) && (
+                              <span className="badge badge-missing" title="File not found at stored path">⚠ File Missing</span>
+                            )}
+                          </div>
                           <div className="alm-asset-meta">
                             <span className={`badge ${asset.source === 'local' ? 'badge-local' : 'badge-mediasilo'}`}>
                               {asset.source === 'local' ? 'Local' : 'MediaSilo'}
                             </span>
                             <span className="meta-item">Key: <code>{asset.key}</code></span>
                             {asset.duration && <span className="meta-item">Duration: {asset.duration.toFixed(1)}s</span>}
-                            {asset.path && <span className="meta-item meta-path" title={asset.path}>Path: {asset.path}</span>}
+                            {asset.path && <span className={`meta-item meta-path${missingPaths.has(asset.id) ? ' meta-path-missing' : ''}`} title={asset.path}>Path: {asset.path}</span>}
                             {asset.mediaSiloId && <span className="meta-item">ID: {asset.mediaSiloId}</span>}
                           </div>
                         </div>
                         <div className="alm-asset-actions">
+                          {missingPaths.has(asset.id) && (
+                            <button
+                              className="btn btn-small btn-relink"
+                              onClick={() => relinkAsset(asset.id, 'video')}
+                            >
+                              Re-link File
+                            </button>
+                          )}
                           {asset.source === 'mediasilo' && (
                             <button
                               className="btn btn-small btn-primary"
@@ -562,19 +629,32 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                       </div>
                     ) : (
                       <>
-                        <div className="alm-asset-info">
-                          <h4>{asset.name}</h4>
+                        <div className={`alm-asset-info${missingPaths.has(asset.id) ? ' alm-asset-missing' : ''}`}>
+                          <div className="alm-asset-title-row">
+                            <h4>{asset.name}</h4>
+                            {missingPaths.has(asset.id) && (
+                              <span className="badge badge-missing" title="File not found at stored path">⚠ File Missing</span>
+                            )}
+                          </div>
                           <div className="alm-asset-meta">
                             <span className={`badge ${asset.source === 'local' ? 'badge-local' : 'badge-mediasilo'}`}>
                               {asset.source === 'local' ? 'Local' : 'MediaSilo'}
                             </span>
                             <span className="meta-item">Key: <code>{asset.key}</code></span>
                             {asset.duration && <span className="meta-item">Duration: {asset.duration.toFixed(1)}s</span>}
-                            {asset.path && <span className="meta-item meta-path" title={asset.path}>Path: {asset.path}</span>}
+                            {asset.path && <span className={`meta-item meta-path${missingPaths.has(asset.id) ? ' meta-path-missing' : ''}`} title={asset.path}>Path: {asset.path}</span>}
                             {asset.mediaSiloId && <span className="meta-item">ID: {asset.mediaSiloId}</span>}
                           </div>
                         </div>
                         <div className="alm-asset-actions">
+                          {missingPaths.has(asset.id) && (
+                            <button
+                              className="btn btn-small btn-relink"
+                              onClick={() => relinkAsset(asset.id, 'video')}
+                            >
+                              Re-link File
+                            </button>
+                          )}
                           {asset.source === 'mediasilo' && (
                             <button
                               className="btn btn-small btn-primary"
@@ -660,18 +740,31 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                         </div>
                       ) : (
                         <>
-                          <div className="alm-asset-info">
-                            <h4>{asset.name}</h4>
+                          <div className={`alm-asset-info${missingPaths.has(asset.id) ? ' alm-asset-missing' : ''}`}>
+                            <div className="alm-asset-title-row">
+                              <h4>{asset.name}</h4>
+                              {missingPaths.has(asset.id) && (
+                                <span className="badge badge-missing" title="File not found at stored path">⚠ File Missing</span>
+                              )}
+                            </div>
                             <div className="alm-asset-meta">
                               <span className={`badge ${asset.source === 'local' ? 'badge-local' : 'badge-mediasilo'}`}>
                                 {asset.source === 'local' ? 'Local' : 'MediaSilo'}
                               </span>
                               <span className="meta-item">Key: <code>{asset.key}</code></span>
-                              {asset.path && <span className="meta-item meta-path" title={asset.path}>Path: {asset.path}</span>}
+                              {asset.path && <span className={`meta-item meta-path${missingPaths.has(asset.id) ? ' meta-path-missing' : ''}`} title={asset.path}>Path: {asset.path}</span>}
                               {asset.mediaSiloId && <span className="meta-item">ID: {asset.mediaSiloId}</span>}
                             </div>
                           </div>
                           <div className="alm-asset-actions">
+                            {missingPaths.has(asset.id) && (
+                              <button
+                                className="btn btn-small btn-relink"
+                                onClick={() => relinkAsset(asset.id, 'image')}
+                              >
+                                Re-link File
+                              </button>
+                            )}
                             {asset.source === 'mediasilo' && (
                               <button
                                 className="btn btn-small btn-primary"

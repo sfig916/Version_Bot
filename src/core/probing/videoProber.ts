@@ -3,6 +3,7 @@
  */
 
 import { execFileSync } from 'child_process';
+import fs from 'fs';
 import path from 'path';
 import { VideoMetadata } from '../models/types';
 
@@ -35,9 +36,25 @@ function parseFrameRate(fpsStr: string): number {
  * Get ffprobe binary path (cross-platform)
  */
 function getFFprobePath(): string {
+  function resolvePackagedBinaryPath(candidatePath: string): string {
+    if (candidatePath.includes('app.asar')) {
+      const unpackedPath = candidatePath.replace('app.asar', 'app.asar.unpacked');
+      if (unpackedPath !== candidatePath && fs.existsSync(unpackedPath)) {
+        return unpackedPath;
+      }
+    }
+
+    if (fs.existsSync(candidatePath)) {
+      return candidatePath;
+    }
+
+    return candidatePath;
+  }
+
   // Try to use ffprobe-static if available, otherwise assume in PATH
   try {
-    return require('ffprobe-static').path;
+    const staticPath = require('ffprobe-static').path as string;
+    return resolvePackagedBinaryPath(staticPath);
   } catch {
     return 'ffprobe';
   }

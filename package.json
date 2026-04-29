@@ -16,6 +16,7 @@
     "pack": "electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "package:portable": "node scripts/package-portable.js",
+    "package:macos": "node scripts/package-macos.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest --run",
@@ -56,12 +57,14 @@
       "buildResources": "assets"
     },
     "files": [
-      "dist/**/*",
+      "dist/main/**/*",
+      "dist/renderer/**/*",
       "node_modules/**/*",
       "presets/**/*",
       "package.json"
     ],
     "win": {
+      "signAndEditExecutable": false,
       "target": [
         "portable"
       ]

@@ -97,6 +97,17 @@
   z-index: 1;
 }
 
+.select-all-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.select-all-header input {
+  margin: 0;
+}
+
 .preset-table tbody tr:hover {
   background-color: #f8fbff;
 }

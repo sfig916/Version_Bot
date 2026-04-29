@@ -8,9 +8,17 @@
 
 ### Installation (Windows)
 
-1. Download `Version Bot.exe` from the release folder
-2. No installation needed - just run the executable
-3. The app will create configuration folders in `%APPDATA%\Electron\` on first run
+1. Download `dist/release/Version-Bot-portable.zip`
+2. Extract the zip to any folder
+3. Run `Version-Bot-portable/Version Bot.exe`
+4. Presets and linked assets are already bundled in `user-data/`
+
+### Installation (macOS)
+
+1. A Mac build must be created on a Mac with `npm run package:macos`
+2. Share `dist/release/Version-Bot-macOS.zip`
+3. Extract the zip and open `Version Bot.app`
+4. If Gatekeeper blocks the app, right-click it and choose Open
 
 ### Usage
 
@@ -70,7 +78,8 @@
 
 - **MediaSilo integration** is planned but not yet available (buttons are hidden)
 - **Code signing** is not enabled (app will show security warning on first run - click "Run" to proceed)
-- **macOS/Linux builds** require running on those systems (currently only Windows exe available)
+- **macOS builds** must be created and tested on a Mac with `npm run package:macos`
+- **Linux builds** still require a separate packaging workflow
 - **Settings panel** not yet implemented (all files are in standard Electron userData folders)
 - **Logging** writes to console and Pino logger (check console for detailed errors)
 
@@ -99,14 +108,17 @@
 
 ## File Locations
 
-- **Presets**: `%APPDATA%\Electron\presets\` (YAML files)
-- **Assets**: `%APPDATA%\Electron\` (JSON library files)
-- **Logs**: Console output (open browser dev tools with F12)
+- **Presets**: `%APPDATA%\version-bot\presets\` (YAML files)
+- **Assets**: `%APPDATA%\version-bot\` (JSON library files)
+- **Portable package data**: `Version-Bot-portable\user-data\` (when using the shared portable zip)
+- **Portable macOS package data**: `Version-Bot-macOS\user-data\` (when using the shared macOS zip)
+- **Logs**: Console output in development builds
 - **Temporary files**: `%TEMP%\` (cleaned up after rendering)
 
 ## System Requirements
 
-- **Windows 10+** (other platforms coming soon)
+- **Windows 10+** for the current Windows portable build
+- **macOS** for the Mac build produced by `npm run package:macos`
 - **1 GB RAM** (4GB+ recommended for 4K video)
 - **2 GB disk space** (for ffmpeg binaries)
 - **Additional space** for output videos (depends on duration and bitrate)
@@ -132,7 +144,7 @@ Please report issues, feature requests, and user experience feedback to the team
 ## Next Steps (Post-Alpha)
 
 - [ ] Packaging as NSIS installer for Windows
-- [ ] macOS dmg/zip builds with code signing
+- [ ] macOS code signing and notarization
 - [ ] Linux AppImage/deb packages
 - [ ] Settings panel for customization
 - [ ] MediaSilo cloud asset integration

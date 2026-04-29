@@ -5,6 +5,7 @@
 import { app, BrowserWindow, ipcMain, dialog, safeStorage, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import { z } from 'zod';
 import { getLogger } from '../core/logging/logger';
 import { probeVideo } from '../core/probing/videoProber';
 import {
@@ -35,6 +36,44 @@ let mainWindow: BrowserWindow | null = null;
 
 // Store current plan in memory for IPC communication
 let currentPlan: RenderPlan | null = null;
+
+// === Portable mode detection ===
+// If a 'user-data' folder exists next to the executable or app bundle, use it
+// as userData. This supports self-contained Windows and macOS zip builds.
+(function detectPortableMode() {
+  function getPortableUserDataDir(): string | undefined {
+    const exeDir = path.dirname(app.getPath('exe'));
+    const candidateDirs: string[] = [];
+
+    // In packaged mode, app.getPath('exe') returns the Electron binary inside resources.
+    // Walk up the directory tree to find the portable root and look for user-data there.
+    let walkDir = exeDir;
+    for (let i = 0; i < 6; i++) {
+      const candidate = path.join(walkDir, 'user-data');
+      if (fs.existsSync(candidate)) {
+        candidateDirs.push(candidate);
+      }
+      const parentDir = path.dirname(walkDir);
+      if (parentDir === walkDir) break; // Reached filesystem root
+      walkDir = parentDir;
+    }
+
+    if (process.platform === 'darwin') {
+      candidateDirs.push(path.resolve(exeDir, '..', '..', '..', 'user-data'));
+    }
+
+    return candidateDirs.find((candidateDir) => fs.existsSync(candidateDir));
+  }
+
+  try {
+    const portableDataDir = getPortableUserDataDir();
+    if (portableDataDir) {
+      app.setPath('userData', portableDataDir);
+    }
+  } catch {
+    // Ignore - portable detection is best-effort
+  }
+})();
 
 function getPresetsDir(presetsDir?: string): string {
   return presetsDir || path.join(app.getPath('userData'), 'presets');
@@ -141,6 +180,65 @@ type MediaSiloCacheIndex = Record<string, CachedMediaSiloAsset>;
 const DEFAULT_MEDIASILO_AUTH_URL = 'https://app.mediasilo.com/desktop-login/initiate';
 const DEFAULT_MEDIASILO_TENANT_LABEL = 'Activision';
 
+const assetLibraryNameSchema = z.enum([
+  'version-bot-prepend-library',
+  'version-bot-append-library',
+  'version-bot-overlay-library',
+]);
+
+const slateAssetLibraryItemSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  key: z.string().min(1),
+  source: z.enum(['local', 'mediasilo']),
+  mediaSiloId: z.string().min(1).optional(),
+  path: z.string().min(1).optional(),
+  duration: z.coerce.number().positive(),
+});
+
+const overlayAssetLibraryItemSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  key: z.string().min(1),
+  source: z.enum(['local', 'mediasilo']),
+  mediaSiloId: z.string().min(1).optional(),
+  path: z.string().min(1).optional(),
+});
+
+function getAssetLibrarySchema(libraryName: string) {
+  const validLibraryName = assetLibraryNameSchema.parse(libraryName);
+  return validLibraryName === 'version-bot-overlay-library'
+    ? z.array(overlayAssetLibraryItemSchema)
+    : z.array(slateAssetLibraryItemSchema);
+}
+
+function validateHttpsUrl(rawValue: string, label: string): string {
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(rawValue.trim());
+  } catch {
+    throw new Error(`${label} must be a valid URL.`);
+  }
+
+  if (parsedUrl.protocol !== 'https:') {
+    throw new Error(`${label} must use https.`);
+  }
+
+  return parsedUrl.toString();
+}
+
+function validateMediaSiloAuthUrl(rawValue: string): string {
+  const validatedUrl = validateHttpsUrl(rawValue, 'MediaSilo auth URL');
+  const hostname = new URL(validatedUrl).hostname.toLowerCase();
+
+  if (hostname !== 'app.mediasilo.com' && !hostname.endsWith('.mediasilo.com')) {
+    throw new Error('MediaSilo auth URL must use an approved mediasilo.com host.');
+  }
+
+  return validatedUrl;
+}
+
 function readMediaSiloConfig(): MediaSiloConfig {
   const defaults: MediaSiloConfig = {
     authUrl: DEFAULT_MEDIASILO_AUTH_URL,
@@ -154,9 +252,16 @@ function readMediaSiloConfig(): MediaSiloConfig {
 
   try {
     const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as Partial<MediaSiloConfig>;
+    const authUrl = typeof parsed.authUrl === 'string'
+      ? validateMediaSiloAuthUrl(parsed.authUrl)
+      : defaults.authUrl;
+    const apiBaseUrl = typeof parsed.apiBaseUrl === 'string'
+      ? validateHttpsUrl(parsed.apiBaseUrl, 'MediaSilo API base URL')
+      : undefined;
+
     return {
-      authUrl: typeof parsed.authUrl === 'string' ? parsed.authUrl : defaults.authUrl,
-      apiBaseUrl: typeof parsed.apiBaseUrl === 'string' ? parsed.apiBaseUrl : undefined,
+      authUrl,
+      apiBaseUrl,
       tenantName: typeof parsed.tenantName === 'string' ? parsed.tenantName : defaults.tenantName,
     };
   } catch (error) {
@@ -169,6 +274,19 @@ function readMediaSiloConfig(): MediaSiloConfig {
 
 function writeMediaSiloConfig(config: MediaSiloConfig): void {
   fs.writeFileSync(getMediaSiloConfigPath(), JSON.stringify(config, null, 2), 'utf-8');
+}
+
+function buildManagedMediaSiloConfig(configPatch: Partial<MediaSiloConfig> = {}): MediaSiloConfig {
+  const current = readMediaSiloConfig();
+
+  return {
+    ...current,
+    authUrl: DEFAULT_MEDIASILO_AUTH_URL,
+    apiBaseUrl: configPatch.apiBaseUrl
+      ? validateHttpsUrl(configPatch.apiBaseUrl, 'MediaSilo API base URL')
+      : current.apiBaseUrl,
+    tenantName: DEFAULT_MEDIASILO_TENANT_LABEL,
+  };
 }
 
 function readMediaSiloSession(): MediaSiloSession | null {
@@ -214,10 +332,12 @@ function readMediaSiloSession(): MediaSiloSession | null {
 }
 
 function writeMediaSiloSession(session: MediaSiloSession): void {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('Secure credential storage is unavailable on this machine. MediaSilo login is disabled.');
+  }
+
   const payload = JSON.stringify(session);
-  const toWrite = safeStorage.isEncryptionAvailable()
-    ? `enc:${safeStorage.encryptString(payload).toString('base64')}`
-    : `raw:${payload}`;
+  const toWrite = `enc:${safeStorage.encryptString(payload).toString('base64')}`;
   fs.writeFileSync(getMediaSiloSessionPath(), toWrite, 'utf-8');
 }
 
@@ -288,9 +408,9 @@ function getMediaSiloAuthStatus(): MediaSiloAuthStatus {
     tenantName: config.tenantName,
     cachedAssets: Object.keys(cacheIndex).length,
     expiresAt: session?.expiresAt,
-    message: configured
+    message: session?.accessToken
       ? undefined
-      : 'MediaSilo not configured yet. Add your tenant auth URL to enable SSO login.',
+      : 'Sign in with your Activision account to access the shared Activision MediaSilo project.',
   };
 }
 
@@ -323,6 +443,10 @@ function writeAssetOverrides(overrides: AssetOverrideMap): void {
   fs.writeFileSync(filePath, JSON.stringify(overrides, null, 2), 'utf-8');
 }
 
+function resolveRelativePath(relativePath: string): string {
+  return path.resolve(app.getPath('userData'), relativePath);
+}
+
 function resolveAssetPath(
   explicitPath: string | undefined,
   assetRef: AssetReference | undefined,
@@ -330,7 +454,8 @@ function resolveAssetPath(
 ): string | undefined {
   const directPath = explicitPath?.trim();
   if (directPath) {
-    return directPath;
+    // Resolve relative paths from userData (supports portable distribution)
+    return path.isAbsolute(directPath) ? directPath : resolveRelativePath(directPath);
   }
 
   if (!assetRef) {
@@ -339,7 +464,7 @@ function resolveAssetPath(
 
   const overridePath = overrides[assetRef.key]?.trim();
   if (overridePath) {
-    return overridePath;
+    return path.isAbsolute(overridePath) ? overridePath : resolveRelativePath(overridePath);
   }
 
   if (assetRef.source === 'mediasilo') {
@@ -509,6 +634,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
     },
   });
 
@@ -551,22 +677,26 @@ app.on('activate', () => {
 // ---- Asset Libraries -------------------------------------------------------
 
 function getAssetLibraryFilePath(libraryName: string): string {
-  return path.join(app.getPath('userData'), `${libraryName}.json`);
+  const validLibraryName = assetLibraryNameSchema.parse(libraryName);
+  return path.join(app.getPath('userData'), `${validLibraryName}.json`);
 }
 
 function readAssetLibrary(libraryName: string): unknown[] {
   const filePath = getAssetLibraryFilePath(libraryName);
   if (!fs.existsSync(filePath)) return [];
+
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown[];
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    return getAssetLibrarySchema(libraryName).parse(parsed);
   } catch {
-    return [];
+    throw new Error(`Asset library file "${libraryName}" is invalid.`);
   }
 }
 
 function writeAssetLibrary(libraryName: string, items: unknown[]): void {
+  const validatedItems = getAssetLibrarySchema(libraryName).parse(items);
   const filePath = getAssetLibraryFilePath(libraryName);
-  fs.writeFileSync(filePath, JSON.stringify(items, null, 2), 'utf-8');
+  fs.writeFileSync(filePath, JSON.stringify(validatedItems, null, 2), 'utf-8');
 }
 
 ipcMain.handle('get-asset-library', (_event, libraryName: string) => {
@@ -596,6 +726,19 @@ ipcMain.handle('migrate-asset-library-from-localstorage', (_event, libraryName: 
       logger.info(`Migrated ${items.length} items for library: ${libraryName}`);
     }
     return { success: true };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('check-file-exists', (_event, filePath: string) => {
+  try {
+    if (!filePath || typeof filePath !== 'string') return { success: true, data: false };
+    // Resolve relative paths from userData (same logic as asset resolution)
+    const resolved = path.isAbsolute(filePath)
+      ? filePath
+      : path.resolve(app.getPath('userData'), filePath);
+    return { success: true, data: fs.existsSync(resolved) };
   } catch (error) {
     return { success: false, error: String(error) };
   }
@@ -838,14 +981,7 @@ ipcMain.handle('get-mediasilo-status', async () => {
 
 ipcMain.handle('set-mediasilo-config', async (_event, configPatch: Partial<MediaSiloConfig>) => {
   try {
-    const current = readMediaSiloConfig();
-    const next: MediaSiloConfig = {
-      ...current,
-      authUrl: configPatch.authUrl?.trim() || current.authUrl,
-      apiBaseUrl: configPatch.apiBaseUrl?.trim() || current.apiBaseUrl,
-      tenantName: configPatch.tenantName?.trim() || current.tenantName,
-    };
-
+    const next = buildManagedMediaSiloConfig(configPatch);
     writeMediaSiloConfig(next);
     return { success: true, data: next };
   } catch (error) {

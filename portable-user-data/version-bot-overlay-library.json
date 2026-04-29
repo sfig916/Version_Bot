@@ -1,0 +1,30 @@
+[
+  {
+    "id": "1777398769343-2a71bc00e4ded",
+    "name": "BO7 S1 ESRB Upper R",
+    "key": "bo7_s1_esrb_upper_r",
+    "source": "local",
+    "path": "assets/BO7_S1_Toolkit_MGFX_ESRB_M_upper_R_4K_v01.png"
+  },
+  {
+    "id": "1777398769343-51b198ccb98ac",
+    "name": "BO7 S1 ESRB Upper L",
+    "key": "bo7_s1_esrb_upper_l",
+    "source": "local",
+    "path": "assets/BO7_S1_Toolkit_MGFX_ESRB_M_upper_L_4K_v01.png"
+  },
+  {
+    "id": "1777398769343-69f88e24712e3",
+    "name": "BO7 S1 ESRB Lower R",
+    "key": "bo7_s1_esrb_lower_r",
+    "source": "local",
+    "path": "assets/BO7_S1_Toolkit_MGFX_ESRB_M_lower_R_4K_v01 (1).png"
+  },
+  {
+    "id": "1777398769343-49c7bce31d6c6",
+    "name": "BO7 S1 ESRB Lower L",
+    "key": "bo7_s1_esrb_lower_l",
+    "source": "local",
+    "path": "assets/BO7_S1_Toolkit_MGFX_ESRB_M_lower_L_4K_v01.png"
+  }
+]

@@ -94,6 +94,22 @@ function toKey(value: string): string {
     .replace(/^_+|_+$/g, '');
 }
 
+function tokenizeKey(value?: string): string[] {
+  if (!value) return [];
+  return toKey(value)
+    .split('_')
+    .filter(Boolean)
+    .filter((token) => !['toolkit', 'mgfx', 'png', 'jpg', 'jpeg', 'webp', 'bmp', '4k', 'v01', 'v1'].includes(token));
+}
+
+function isTokenSubsetMatch(candidate: string | undefined, reference: string | undefined): boolean {
+  const candidateTokens = tokenizeKey(candidate);
+  const referenceTokens = tokenizeKey(reference);
+
+  return referenceTokens.length > 0
+    && referenceTokens.every((token) => candidateTokens.includes(token));
+}
+
 function formatAspectLabel(width: number, height: number): string {
   const ratio = width / height;
   const known = [
@@ -184,10 +200,21 @@ export default function PresetManager({
     if (overlay.assetRef?.key) {
       const byKey = overlayLib.find((a) => a.key === overlay.assetRef?.key);
       if (byKey) return `${byKey.name}${duration}`;
+
+      const fuzzyByKey = overlayLib.find(
+        (a) => isTokenSubsetMatch(overlay.assetRef?.key, a.key) || isTokenSubsetMatch(overlay.assetRef?.key, a.name)
+      );
+      if (fuzzyByKey) return `${fuzzyByKey.name}${duration}`;
     }
     if (overlay.assetPath) {
       const byPath = overlayLib.find((a) => a.path === overlay.assetPath);
       if (byPath) return `${byPath.name}${duration}`;
+
+      const fuzzyByPath = overlayLib.find(
+        (a) => isTokenSubsetMatch(getBasename(overlay.assetPath), a.key) || isTokenSubsetMatch(getBasename(overlay.assetPath), a.name)
+      );
+      if (fuzzyByPath) return `${fuzzyByPath.name}${duration}`;
+
       return `${getBasename(overlay.assetPath)}${duration}`;
     }
     return overlay.assetRef?.key ? `${overlay.assetRef.key}${duration}` : 'Not selected';
@@ -383,13 +410,13 @@ export default function PresetManager({
         <thead>
           <tr>
             <th>Preset Name</th>
+            <th>Prepend</th>
+            <th>Append</th>
+            <th>ESRB Overlay</th>
             <th>Aspect Ratio</th>
             <th>Resolution</th>
             <th>Target Bitrate</th>
             <th>Max Filesize</th>
-            <th>Prepend</th>
-            <th>Append</th>
-            <th>ESRB Overlay</th>
             <th>FPS</th>
             <th>Codec/Format</th>
             <th>Audio Specs</th>
@@ -403,13 +430,13 @@ export default function PresetManager({
           {presets.slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
             <tr key={p.id}>
               <td><strong>{p.name}</strong><div className="pm-id">{p.id}</div></td>
+              <td>{getSlateDisplayName(p.introSlate, prependLib)}</td>
+              <td>{getSlateDisplayName(p.outroSlate, appendLib)}</td>
+              <td>{getOverlayDisplayName(p.overlay)}</td>
               <td>{formatAspectLabel(p.width, p.height)}</td>
               <td>{p.width}×{p.height}</td>
               <td>{formatVideoBitrateMbps(p.bitrate)} Mbps</td>
               <td>{p.maxFileSizeMB && p.maxFileSizeMB > 0 ? `${p.maxFileSizeMB} MB` : 'No limit'}</td>
-              <td>{getSlateDisplayName(p.introSlate, prependLib)}</td>
-              <td>{getSlateDisplayName(p.outroSlate, appendLib)}</td>
-              <td>{getOverlayDisplayName(p.overlay)}</td>
               <td>59.94</td>
               <td>{p.videoCodec.toUpperCase()} / {p.container.toUpperCase()}</td>
               <td>{p.audioCodec.toUpperCase()} @ {p.audioBitrate || 320} kbps</td>

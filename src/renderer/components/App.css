@@ -109,6 +109,13 @@ body {
   border-color: rgba(252, 211, 77, 0.7);
 }
 
+.media-silo-help-text {
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.82);
+  max-width: 340px;
+  text-align: right;
+}
+
 .btn-nav {
   background-color: rgba(255, 255, 255, 0.2);
   color: white;

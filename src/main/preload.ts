@@ -125,6 +125,9 @@ const api = {
   migrateAssetLibraryFromLocalStorage: (libraryName: string, items: unknown[]) =>
     ipcRenderer.invoke('migrate-asset-library-from-localstorage', libraryName, items) as Promise<APIResult<void>>,
 
+  checkFileExists: (filePath: string) =>
+    ipcRenderer.invoke('check-file-exists', filePath) as Promise<APIResult<boolean>>,
+
   // Render planning
   createRenderPlan: (
     metadata: VideoMetadata,

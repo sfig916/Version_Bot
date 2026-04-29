@@ -95,7 +95,7 @@ describe('Preset Loader', () => {
     expect(() => validatePreset(preset)).toThrow();
   });
 
-  it('should accept legacy overlay fields and ignore unknown keys', () => {
+  it('should ignore legacy overlay fields and unknown keys', () => {
     const preset = {
       id: 'legacy-overlay',
       name: 'Legacy Overlay',
@@ -119,7 +119,7 @@ describe('Preset Loader', () => {
 
     const validated = validatePreset(preset);
     expect(validated.overlay?.enabled).toBe(true);
-    expect(validated.overlay?.position).toBe('br');
+    expect((validated.overlay as { position?: string } | undefined)?.position).toBeUndefined();
     expect(validated.overlay?.duration).toBe(4);
   });
 

@@ -1,0 +1,34 @@
+[
+  {
+    "id": "1777394031527-8227f802ee52e",
+    "name": "Sony Outro",
+    "key": "sony_outro",
+    "source": "local",
+    "path": "assets/SIE_BONG_2_1_3P_LEGAL_2026_EN_R_20s_4K_5994f_01.mov",
+    "duration": 2
+  },
+  {
+    "id": "1777400897410-12af51068872a",
+    "name": "Xbox Outro",
+    "key": "xbox_outro",
+    "source": "local",
+    "path": "assets/CHMREV_INT_4K_XboxMnem_16x9.mov",
+    "duration": 1
+  },
+  {
+    "id": "1777400922281-b3689073c9a03",
+    "name": "BNET Outro 2026",
+    "key": "bnet_outro_2026",
+    "source": "local",
+    "path": "assets/2026_BNET.mov",
+    "duration": 4
+  },
+  {
+    "id": "1777400928020-971a446dbbaba",
+    "name": "Steam Outro 2026",
+    "key": "steam_outro_2026",
+    "source": "local",
+    "path": "assets/2026_Steam.mov",
+    "duration": 4
+  }
+]

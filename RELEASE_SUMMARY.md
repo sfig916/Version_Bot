@@ -30,15 +30,17 @@
 
 **Build Configuration:**
 - Updated `package.json` with Windows portable target configuration
-- Configured electron-builder for NSIS and portable .exe creation
+- Added `npm run package:macos` for Mac-built zip packaging with bundled presets/assets
+- Kept electron-builder for app packaging and used custom scripts for shareable Windows/macOS zip bundles
 - Resolved code-signing issues (disabled for alpha release)
 
 **Distributable Created:**
-- Location: `dist/release/Version Bot.exe` (165 MB standalone executable)
-- No installation required - just run the exe
+- Location: `dist/release/Version-Bot-portable.zip`
+- No installation required - extract the zip and run `Version Bot.exe`
 - Bundles ffmpeg, ffprobe, and all dependencies
+- Bundles presets, asset libraries, and linked local media in `user-data/`
 - Electron 26 with production optimizations
-- Ready for team distribution
+- Ready for Windows team distribution
 
 **Release Documentation:**
 - `TEAM_ALPHA_RELEASE.md` - Comprehensive user guide with testing checklist
@@ -93,7 +95,7 @@ Dependencies: ✓ All bundled (no external runtime requirements)
 - [ ] MediaSilo cloud asset integration (buttons hidden)
 - [ ] Settings panel for user preferences
 - [ ] Code signing certificates
-- [ ] macOS .dmg/.zip builds
+- [ ] macOS code signing / notarization for smoother distribution
 - [ ] Linux AppImage/.deb packages
 - [ ] NSIS installer with welcome screens
 - [ ] Advanced color grading/effects
@@ -104,8 +106,8 @@ Dependencies: ✓ All bundled (no external runtime requirements)
 ## How to Test
 
 ### Quick Start
-1. Download `dist/release/Version Bot.exe`
-2. Run the executable (no installation needed)
+1. Download `dist/release/Version-Bot-portable.zip`
+2. Extract the zip and run `Version-Bot-portable/Version Bot.exe`
 3. Select a test video file (use sample MP4 from your machine)
 4. Choose 1-2 output presets
 5. Set output directory
@@ -127,21 +129,24 @@ See `TEAM_ALPHA_RELEASE.md` for detailed testing checklist including:
 - Error handling scenarios
 - Output verification
 
+### Cross-Platform Packaging Notes
+- Windows distribution is produced from this machine with `npm run package:portable`
+- macOS distribution must be produced on a Mac with `npm run package:macos`
+- The macOS zip includes `Version Bot.app` plus sibling `user-data/` so saved presets and linked assets travel with the app
+- Unsigned Mac builds will still trigger Gatekeeper until code signing/notarization is added
+
 ## File Structure for Distribution
 
 ```
-Version Bot.exe                      # Main executable (standalone)
-└─ All dependencies bundled:
-   ├─ Electron runtime
-   ├─ ffmpeg (video encoding)
-   ├─ ffprobe (video analysis)
-   ├─ React app (UI bundle)
-   └─ Node.js runtime
+Version-Bot-portable/
+├─ Version Bot.exe                  # Main executable
+├─ user-data/                       # Presets, libraries, bundled assets
+└─ bundled runtime dependencies     # Electron, ffmpeg, ffprobe, UI bundle
 ```
 
 ## System Requirements
 
-- **OS**: Windows 10, Windows 11
+- **OS**: Windows 10, Windows 11 for the current ready-to-send build
 - **RAM**: 1 GB minimum (4 GB recommended)
 - **Disk Space**: 2 GB for app + space for output videos
 - **Video Formats**: MP4, MOV, MKV, WebM
@@ -192,7 +197,7 @@ Please test thoroughly and provide feedback on:
 3. **UI Polish** - Refine based on feedback
 4. **Code Signing** - Set up certificates for release builds
 5. **Installer Creation** - Build NSIS installer for easier distribution
-6. **macOS Build** - Cross-compile and test on macOS
+6. **macOS Build** - Run `npm run package:macos` and test on macOS hardware
 7. **Linux Build** - Create AppImage and deb packages
 8. **Beta Release** - Public beta with expanded testing
 

@@ -167,6 +167,10 @@ export default function PresetSelector({
   const [batchOverlayOverrideEnabled, setBatchOverlayOverrideEnabled] = useState(false);
   const [batchOverlayOverride, setBatchOverlayOverride] = useState('4');
   const hasMaxFileSize = Number(draft.maxFileSizeMB || 0) > 0;
+  const sortedPresets = presets.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const allPresetsSelected = sortedPresets.length > 0
+    && sortedPresets.every((preset) => selectedPresetIds.includes(preset.id));
+  const somePresetsSelected = sortedPresets.some((preset) => selectedPresetIds.includes(preset.id));
 
   const toAssetKey = (value: string): string =>
     value
@@ -174,6 +178,23 @@ export default function PresetSelector({
       .trim()
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '');
+
+  const tokenizeAssetKey = (value?: string): string[] => {
+    if (!value) return [];
+
+    return toAssetKey(value)
+      .split('_')
+      .filter(Boolean)
+      .filter((token) => !['toolkit', 'mgfx', 'png', 'jpg', 'jpeg', 'webp', 'bmp', '4k', 'v01', 'v1'].includes(token));
+  };
+
+  const isTokenSubsetMatch = (candidate: string | undefined, reference: string | undefined): boolean => {
+    const candidateTokens = tokenizeAssetKey(candidate);
+    const referenceTokens = tokenizeAssetKey(reference);
+
+    return referenceTokens.length > 0
+      && referenceTokens.every((token) => candidateTokens.includes(token));
+  };
 
   const normalizeLibraryItem = (item: Partial<SlateAssetOption>): SlateAssetOption => {
     const name = item.name?.trim() || 'Untitled Asset';
@@ -231,6 +252,17 @@ export default function PresetSelector({
       console.error('Error selecting output directory:', error);
     }
     setIsSelectingDir(false);
+  };
+
+  const handleToggleAllPresets = () => {
+    const nextSelectedState = !allPresetsSelected;
+
+    for (const preset of sortedPresets) {
+      const isSelected = selectedPresetIds.includes(preset.id);
+      if (isSelected !== nextSelectedState) {
+        onPresetToggle(preset.id);
+      }
+    }
   };
 
   const handleCreatePlan = () => {
@@ -584,10 +616,21 @@ export default function PresetSelector({
     if (preset.overlay.assetRef?.key) {
       const byKey = overlayLibrary.find((a) => a.key === preset.overlay?.assetRef?.key);
       if (byKey) return `${byKey.name}${duration}`;
+
+      const fuzzyByKey = overlayLibrary.find(
+        (a) => isTokenSubsetMatch(preset.overlay?.assetRef?.key, a.key) || isTokenSubsetMatch(preset.overlay?.assetRef?.key, a.name)
+      );
+      if (fuzzyByKey) return `${fuzzyByKey.name}${duration}`;
     }
     if (preset.overlay.assetPath) {
       const byPath = overlayLibrary.find((a) => a.path === preset.overlay?.assetPath);
       if (byPath) return `${byPath.name}${duration}`;
+
+      const fuzzyByPath = overlayLibrary.find(
+        (a) => isTokenSubsetMatch(getBasename(preset.overlay?.assetPath), a.key) || isTokenSubsetMatch(getBasename(preset.overlay?.assetPath), a.name)
+      );
+      if (fuzzyByPath) return `${fuzzyByPath.name}${duration}`;
+
       return `${getBasename(preset.overlay.assetPath)}${duration}`;
     }
 
@@ -630,10 +673,10 @@ export default function PresetSelector({
           <h3>Source Video</h3>
           <div className="video-stats-row">
             <span>
-              <strong>Resolution:</strong> {video.width}x{video.height}
+              <strong>Aspect Ratio:</strong> {formatAspectRatioLabel(video.width, video.height)}
             </span>
             <span>
-              <strong>Aspect Ratio:</strong> {formatAspectRatioLabel(video.width, video.height)}
+              <strong>Resolution:</strong> {video.width}x{video.height}
             </span>
             <span>
               <strong>Duration:</strong> {Math.floor(video.duration / 60)}:
@@ -652,15 +695,30 @@ export default function PresetSelector({
           <table className="preset-table">
             <thead>
               <tr>
-                <th>Select</th>
+                <th>
+                  <div className="select-all-header">
+                    <span>Select</span>
+                    <input
+                      type="checkbox"
+                      checked={allPresetsSelected}
+                      ref={(element) => {
+                        if (element) {
+                          element.indeterminate = somePresetsSelected && !allPresetsSelected;
+                        }
+                      }}
+                      onChange={handleToggleAllPresets}
+                      aria-label={allPresetsSelected ? 'Deselect all presets' : 'Select all presets'}
+                    />
+                  </div>
+                </th>
                 <th>Preset Name</th>
+                <th>Prepend</th>
+                <th>Append</th>
+                <th>ESRB Overlay</th>
                 <th>Aspect Ratio</th>
                 <th>Resolution</th>
                 <th>Target Bitrate</th>
                 <th>Max Filesize</th>
-                <th>Prepend</th>
-                <th>Append</th>
-                <th>ESRB Overlay</th>
                 <th>FPS</th>
                 <th>Codec/Format</th>
                 <th>Audio Specs</th>
@@ -668,7 +726,7 @@ export default function PresetSelector({
               </tr>
             </thead>
             <tbody>
-              {presets.slice().sort((a, b) => a.name.localeCompare(b.name)).map((preset) => {
+              {sortedPresets.map((preset) => {
                 const isSelected = selectedPresetIds.includes(preset.id);
                 return (
                   <tr key={preset.id} className={isSelected ? 'row-selected' : ''}>
@@ -680,14 +738,6 @@ export default function PresetSelector({
                       />
                     </td>
                     <td>{preset.name}</td>
-                    <td>{formatAspectRatioLabel(preset.width, preset.height)}</td>
-                    <td>{preset.width}x{preset.height}</td>
-                    <td>{formatVideoBitrateMbps(preset.bitrate)} Mbps</td>
-                    <td>
-                      {preset.maxFileSizeMB && preset.maxFileSizeMB > 0
-                        ? `${preset.maxFileSizeMB} MB`
-                        : 'No limit'}
-                    </td>
                     <td className={isSlateMissing(preset.introSlate) ? 'overlay-missing' : ''}>
                       {getIntroDisplay(preset.introSlate)}
                     </td>
@@ -696,6 +746,14 @@ export default function PresetSelector({
                     </td>
                     <td className={isOverlayAssetMissing(preset) ? 'overlay-missing' : ''}>
                       {getOverlayDisplay(preset)}
+                    </td>
+                    <td>{formatAspectRatioLabel(preset.width, preset.height)}</td>
+                    <td>{preset.width}x{preset.height}</td>
+                    <td>{formatVideoBitrateMbps(preset.bitrate)} Mbps</td>
+                    <td>
+                      {preset.maxFileSizeMB && preset.maxFileSizeMB > 0
+                        ? `${preset.maxFileSizeMB} MB`
+                        : 'No limit'}
                     </td>
                     <td>59.94</td>
                     <td>{preset.videoCodec.toUpperCase()} / {preset.container.toUpperCase()}</td>
