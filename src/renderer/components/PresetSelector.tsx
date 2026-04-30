@@ -53,13 +53,6 @@ function getDefaultOutputDir(filePath: string): string {
   return `${filePath.slice(0, lastSeparatorIndex + 1)}Versioning`;
 }
 
-function getBaseFilename(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, '/');
-  const filename = normalized.split('/').pop() || filePath;
-  const extensionIndex = filename.lastIndexOf('.');
-  return extensionIndex > 0 ? filename.slice(0, extensionIndex) : filename;
-}
-
 function formatAspectRatioLabel(width: number, height: number): string {
   const ratio = width / height;
   const presets = [
@@ -85,6 +78,34 @@ function parseVideoBitrateMbps(value: string): number {
   return Math.round(Number(value) * 1000);
 }
 
+function splitDurationToParts(durationSeconds: number): { seconds: string; frames: string } {
+  const normalized = Math.max(0, Number(durationSeconds) || 0);
+  let seconds = Math.floor(normalized);
+  let frames = Math.round((normalized - seconds) * OUTPUT_FPS);
+
+  const roundedFps = Math.round(OUTPUT_FPS);
+  if (frames >= roundedFps) {
+    seconds += 1;
+    frames = 0;
+  }
+
+  return {
+    seconds: String(seconds),
+    frames: String(frames),
+  };
+}
+
+function combineDurationPartsToSeconds(secondsPart: string, framesPart: string): number {
+  const seconds = Math.max(0, parseInt(secondsPart, 10) || 0);
+  const frames = Math.max(0, parseInt(framesPart, 10) || 0);
+  return seconds + (frames / OUTPUT_FPS);
+}
+
+function formatDurationWithFrames(durationSeconds: number): string {
+  const parts = splitDurationToParts(durationSeconds);
+  return ` (${parts.seconds}s ${parts.frames}f)`;
+}
+
 
 interface PresetSelectorProps {
   video: VideoMetadata;
@@ -93,7 +114,7 @@ interface PresetSelectorProps {
   onPresetToggle: (presetId: string) => void;
   onCreatePlan: (
     outputDir: string,
-    filenameTemplate: string,
+    filenamePattern: string,
     fileSizeConstraints: Record<string, number>,
     autoRun?: boolean,
     overlayDurationOverrideSeconds?: number
@@ -119,7 +140,8 @@ interface PresetDraft {
   outroLibraryId: string;
   overlayEnabled: boolean;
   overlayLibraryId: string;
-  overlayDuration: string;
+  overlayDurationSeconds: string;
+  overlayDurationFrames: string;
 }
 
 const INITIAL_DRAFT: PresetDraft = {
@@ -139,7 +161,8 @@ const INITIAL_DRAFT: PresetDraft = {
   outroLibraryId: '',
   overlayEnabled: false,
   overlayLibraryId: '',
-  overlayDuration: '4',
+  overlayDurationSeconds: '4',
+  overlayDurationFrames: '0',
 };
 
 export default function PresetSelector({
@@ -154,9 +177,7 @@ export default function PresetSelector({
   const [outputDir, setOutputDir] = useState<string>(
     getDefaultOutputDir(video.filePath)
   );
-  const [filenameTemplate, setFilenameTemplate] = useState(
-    '{source}_{preset}.{ext}'
-  );
+  const filenamePattern = '{source}_{preset}.{ext}';
   const [isSelectingDir, setIsSelectingDir] = useState(false);
   const [draft, setDraft] = useState<PresetDraft>(INITIAL_DRAFT);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
@@ -165,7 +186,8 @@ export default function PresetSelector({
   const [appendLibrary, setAppendLibrary] = useState<SlateAssetOption[]>([]);
   const [overlayLibrary, setOverlayLibrary] = useState<OverlayAssetOption[]>([]);
   const [batchOverlayOverrideEnabled, setBatchOverlayOverrideEnabled] = useState(false);
-  const [batchOverlayOverride, setBatchOverlayOverride] = useState('4');
+  const [batchOverlayOverrideSecondsPart, setBatchOverlayOverrideSecondsPart] = useState('4');
+  const [batchOverlayOverrideFramesPart, setBatchOverlayOverrideFramesPart] = useState('0');
   const hasMaxFileSize = Number(draft.maxFileSizeMB || 0) > 0;
   const sortedPresets = presets.slice().sort((a, b) => a.name.localeCompare(b.name));
   const allPresetsSelected = sortedPresets.length > 0
@@ -280,12 +302,15 @@ export default function PresetSelector({
 
     let overlayDurationOverrideSeconds: number | undefined;
     if (batchOverlayOverrideEnabled) {
-      overlayDurationOverrideSeconds = Math.max(0, parseFloat(batchOverlayOverride) || 4);
+      overlayDurationOverrideSeconds = combineDurationPartsToSeconds(
+        batchOverlayOverrideSecondsPart,
+        batchOverlayOverrideFramesPart
+      );
     }
 
     onCreatePlan(
       outputDir,
-      filenameTemplate,
+      filenamePattern,
       constraints,
       true,
       overlayDurationOverrideSeconds
@@ -417,7 +442,10 @@ export default function PresetSelector({
             enabled: true,
             assetPath: overlayItem?.source === 'local' ? overlayItem.path : undefined,
             assetRef: overlayItem ? { key: overlayItem.key, source: overlayItem.source, mediaSiloId: overlayItem.mediaSiloId } : undefined,
-            duration: Math.max(0, parseFloat(draft.overlayDuration) || 4),
+            duration: combineDurationPartsToSeconds(
+              draft.overlayDurationSeconds,
+              draft.overlayDurationFrames
+            ),
           }
         : undefined,
     };
@@ -440,6 +468,7 @@ export default function PresetSelector({
 
     setEditingPresetId(preset.id);
     setShowBuilder(true);
+    const overlayDurationParts = splitDurationToParts(preset.overlay?.duration || 4);
     setDraft({
       id: preset.id,
       name: preset.name,
@@ -463,7 +492,8 @@ export default function PresetSelector({
         overlayLibrary.find((a) => preset.overlay?.assetRef?.key && a.key === preset.overlay.assetRef.key)?.id ||
         overlayLibrary.find((a) => preset.overlay?.assetPath && a.path === preset.overlay.assetPath)?.id ||
         '',
-      overlayDuration: String(preset.overlay?.duration || 4),
+      overlayDurationSeconds: overlayDurationParts.seconds,
+      overlayDurationFrames: overlayDurationParts.frames,
     });
   };
 
@@ -605,7 +635,7 @@ export default function PresetSelector({
 
     const duration =
       preset.overlay.duration && preset.overlay.duration > 0
-        ? ` (${preset.overlay.duration}s)`
+        ? formatDurationWithFrames(preset.overlay.duration)
         : '';
 
     if (!preset.overlay.assetPath && !preset.overlay.assetRef?.key) {
@@ -643,18 +673,6 @@ export default function PresetSelector({
     }
 
     return !preset.overlay.assetPath && !preset.overlay.assetRef?.key;
-  };
-
-  const getOutputFilenamePreview = (preset: OutputPreset): string => {
-    const timestamp = new Date().toISOString().split('T')[0];
-    return filenameTemplate
-      .replace(/{source}/g, getBaseFilename(video.filePath))
-      .replace(/{presetId}/g, preset.id)
-      .replace(/{preset}/g, preset.id)
-      .replace(/{name}/g, preset.name)
-      .replace(/{width}x{height}/g, `${preset.width}x${preset.height}`)
-      .replace(/{timestamp}/g, timestamp)
-      .replace(/{ext}/g, preset.container);
   };
 
   return (
@@ -911,15 +929,27 @@ export default function PresetSelector({
               </label>
               {draft.overlayEnabled && (
                 <>
-                  <div className="form-group">
-                    <label>Duration (seconds)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.1}
-                      value={draft.overlayDuration}
-                      onChange={(e) => updateDraft('overlayDuration', e.target.value)}
-                    />
+                  <div className="duration-grid">
+                    <div className="duration-field">
+                      <label>Seconds</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={draft.overlayDurationSeconds}
+                        onChange={(e) => updateDraft('overlayDurationSeconds', e.target.value)}
+                      />
+                    </div>
+                    <div className="duration-field">
+                      <label>Frames</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={draft.overlayDurationFrames}
+                        onChange={(e) => updateDraft('overlayDurationFrames', e.target.value)}
+                      />
+                    </div>
                   </div>
                   {overlayLibrary.length === 0 ? (
                     <p className="help-text">No overlay assets in library. Add some in Manage Assets.</p>
@@ -973,38 +1003,36 @@ export default function PresetSelector({
           </div>
 
           <div className="form-group">
-            <label>
-              Filename Template
-              <span className="help-text">
-                Tokens: {'{source}'} = uploaded filename, {'{preset}'} = preset ID (snake_case), {'{ext}'} = file extension
-              </span>
-            </label>
-            <input
-              type="text"
-              value={filenameTemplate}
-              onChange={(e) => setFilenameTemplate(e.target.value)}
-            />
-          </div>
-
-          <div className="form-group">
             <label className="toggle-label">
               <input
                 type="checkbox"
                 checked={batchOverlayOverrideEnabled}
                 onChange={(e) => setBatchOverlayOverrideEnabled(e.target.checked)}
               />
-              Override Overlay Duration For This Batch
+              <span className="batch-overlay-override-label">Override ESRB Overlay Duration For This Batch</span>
             </label>
             {batchOverlayOverrideEnabled && (
-              <div className="form-group">
-                <label>Duration (seconds)</label>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  value={batchOverlayOverride}
-                  onChange={(e) => setBatchOverlayOverride(e.target.value)}
-                />
+              <div className="duration-grid">
+                <div className="duration-field">
+                  <label>Seconds</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={batchOverlayOverrideSecondsPart}
+                    onChange={(e) => setBatchOverlayOverrideSecondsPart(e.target.value)}
+                  />
+                </div>
+                <div className="duration-field">
+                  <label>Frames</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={batchOverlayOverrideFramesPart}
+                    onChange={(e) => setBatchOverlayOverrideFramesPart(e.target.value)}
+                  />
+                </div>
               </div>
             )}
             <span className="help-text">

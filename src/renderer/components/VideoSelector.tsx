@@ -63,22 +63,41 @@ export default function VideoSelector({
 
   return (
     <div className="video-selector">
-      <div className="selector-content">
-        <div className="icon">🎬</div>
-        <h2>Select Master Video</h2>
-        <p>Choose a video file to create versions from</p>
+      <div className="video-selector-content">
+        <div className="selector-content">
+          <div className="icon">🎬</div>
+          <h2>Select Master Video</h2>
+          <p>Choose a video file to create versions from</p>
 
-        <button
-          className="btn btn-primary"
-          onClick={handleSelectFile}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Analyzing...' : 'Select Video File'}
-        </button>
+          <button
+            className="btn btn-primary"
+            onClick={handleSelectFile}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Analyzing...' : 'Select Video File'}
+          </button>
 
-        {selectedFile && (
-          <p className="selected-file">{selectedFile}</p>
-        )}
+          {selectedFile && (
+            <p className="selected-file">{selectedFile}</p>
+          )}
+        </div>
+
+        <div className="video-selector-actions">
+          <button
+            className="btn btn-nav"
+            onClick={onManagePresets}
+            title="Manage rendering presets and output formats"
+          >
+            ⚙️ Manage Presets
+          </button>
+          <button
+            className="btn btn-nav"
+            onClick={onManageAssets}
+            title="Manage prepend, append, and overlay assets"
+          >
+            📁 Manage Assets
+          </button>
+        </div>
       </div>
     </div>
   );

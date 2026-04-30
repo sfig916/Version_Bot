@@ -24,7 +24,7 @@
 
 1. **Select Video**: Click "Select Video File" and choose your source video
 2. **Choose Output Format**: Pick one or more presets for different versions
-3. **Create Render Plan**: Specify output directory and filename template
+3. **Create Render Plan**: Specify output directory
 4. **Start Rendering**: Review the render plan and click "Start Render"
 
 ### Key Features

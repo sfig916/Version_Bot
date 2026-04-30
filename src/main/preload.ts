@@ -134,7 +134,7 @@ const api = {
     selectedPresetIds: string[],
     allPresets: OutputPreset[],
     outputDir: string,
-    filenameTemplate: string,
+    filenamePattern: string,
     fileSizeConstraints?: Record<string, number>,
     overlayDurationOverrideSeconds?: number
   ) =>
@@ -144,7 +144,7 @@ const api = {
       selectedPresetIds,
       allPresets,
       outputDir,
-      filenameTemplate,
+      filenamePattern,
       fileSizeConstraints,
       overlayDurationOverrideSeconds
     ) as Promise<APIResult<RenderPlan>>,

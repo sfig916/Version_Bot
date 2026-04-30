@@ -23,20 +23,6 @@ export default function RenderPlanner({
 }: RenderPlannerProps) {
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
 
-  const handleViewFFmpegCommand = async (jobId: string) => {
-    try {
-      const result = await window.versionBotAPI.getFFmpegCommand(jobId);
-      if (result.success && result.data) {
-        alert(`FFmpeg Command:\n\n${result.data.fullCommand}`);
-      } else {
-        alert(`Error: ${result.error}`);
-      }
-    } catch (error) {
-      console.error('Error getting FFmpeg command:', error);
-      alert('Failed to get FFmpeg command');
-    }
-  };
-
   const handleOpenOutputDir = async () => {
     try {
       await window.versionBotAPI.openDirectory(plan.outputDirTemplate);
@@ -172,12 +158,6 @@ export default function RenderPlanner({
                         <span className="value">{job.error}</span>
                       </div>
                     )}
-                    <button
-                      className="btn btn-small"
-                      onClick={() => handleViewFFmpegCommand(job.id)}
-                    >
-                      View FFmpeg Command
-                    </button>
                   </div>
                 )}
 
@@ -194,17 +174,6 @@ export default function RenderPlanner({
           </div>
         </div>
 
-        <div className="plan-info">
-          <h3>Plan Information</h3>
-          <div className="info-box">
-            <p>
-              <strong>Execution:</strong> Use Start Render to process all jobs in sequence.
-            </p>
-            <p>
-              You can cancel an active run and inspect FFmpeg command details for each job.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );

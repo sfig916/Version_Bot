@@ -58,6 +58,11 @@
   background-color: rgba(var(--accent-rgb, 99, 102, 241), 0.04);
 }
 
+.pm-inline-editor-row td {
+  padding: 0;
+  background: #f8fafc;
+}
+
 .pm-id {
   font-size: 0.7rem;
   color: var(--text-secondary);
@@ -93,6 +98,14 @@
 .pm-form h3 {
   margin: 0 0 1rem;
   color: var(--text-primary);
+}
+
+.pm-form-inline {
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .pm-form-grid {

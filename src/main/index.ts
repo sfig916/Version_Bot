@@ -1202,7 +1202,7 @@ ipcMain.handle(
     selectedPresetIds: string[],
     allPresets: OutputPreset[],
     outputDir: string,
-    filenameTemplate: string,
+    filenamePattern: string,
     fileSizeConstraints?: Record<string, number>,
     overlayDurationOverrideSeconds?: number
   ) => {
@@ -1249,7 +1249,7 @@ ipcMain.handle(
         metadata,
         resolvedPresets,
         outputDir,
-        filenameTemplate,
+        filenamePattern,
         fileSizeConstraints
           ? new Map(
               Object.entries(fileSizeConstraints).map(([presetId, size]) => [

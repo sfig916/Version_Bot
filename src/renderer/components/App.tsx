@@ -347,7 +347,7 @@ export default function App() {
 
   const handleCreatePlan = async (
     outputDir: string,
-    filenameTemplate: string,
+    filenamePattern: string,
     fileSizeConstraints: Record<string, number>,
     autoRun = false,
     overlayDurationOverrideSeconds?: number
@@ -370,7 +370,7 @@ export default function App() {
         Array.from(state.selectedPresets),
         state.availablePresets,
         outputDir,
-        filenameTemplate,
+        filenamePattern,
         fileSizeConstraints,
         overlayDurationOverrideSeconds
       );
@@ -610,57 +610,43 @@ export default function App() {
             <p>Video Versioning & Batch Export Tool</p>
           </div>
           <div className="header-right">
-            {state.currentView === 'video-select' && (
-              <nav className="header-nav">
+            <div className="media-silo-panel">
+              <div className="media-silo-controls">
+                <span className={`media-silo-status ${mediaSiloStatus?.connected ? 'connected' : 'disconnected'}`}>
+                  MediaSilo: {mediaSiloStatus?.connected ? 'Connected to Activision' : 'Activision sign-in required'}
+                </span>
                 <button
                   className="btn btn-nav"
-                  onClick={handleOpenPresetManager}
-                  title="Manage rendering presets and output formats"
-                >
-                  ⚙️ Manage Presets
-                </button>
-                <button
-                  className="btn btn-nav"
-                  onClick={() => setState((prev) => ({ ...prev, currentView: 'asset-library-manager' }))}
-                  title="Manage prepend, append, and overlay assets"
-                >
-                  📁 Manage Assets
-                </button>
-              </nav>
-            )}
-
-            <div className="media-silo-controls">
-              <span className={`media-silo-status ${mediaSiloStatus?.connected ? 'connected' : 'disconnected'}`}>
-                MediaSilo: {mediaSiloStatus?.connected ? 'Connected to Activision' : 'Activision sign-in required'}
-              </span>
-              <button
-                className="btn btn-nav"
-                onClick={handleConfigureAndLoginMediaSilo}
-                disabled={isMediaSiloBusy}
-                title="Sign in with your Activision account for the shared MediaSilo project"
-              >
-                🔐 Sign In
-              </button>
-              <button
-                className="btn btn-nav"
-                onClick={handleSyncMediaSilo}
-                disabled={isMediaSiloBusy}
-                title="Check MediaSilo asset cache coverage"
-              >
-                🔄 Sync
-              </button>
-              {!mediaSiloStatus?.connected && mediaSiloStatus?.message && (
-                <span className="media-silo-help-text">{mediaSiloStatus.message}</span>
-              )}
-              {mediaSiloStatus?.connected && (
-                <button
-                  className="btn btn-nav"
-                  onClick={handleLogoutMediaSilo}
+                  onClick={handleConfigureAndLoginMediaSilo}
                   disabled={isMediaSiloBusy}
-                  title="Disconnect MediaSilo session"
+                  title="Sign in with your Activision account for the shared MediaSilo project"
                 >
-                  Sign Out
+                  🔐 Sign In
                 </button>
+                <button
+                  className="btn btn-nav"
+                  onClick={handleSyncMediaSilo}
+                  disabled={isMediaSiloBusy}
+                  title="Check MediaSilo asset cache coverage"
+                >
+                  🔄 Sync
+                </button>
+                {mediaSiloStatus?.connected && (
+                  <button
+                    className="btn btn-nav"
+                    onClick={handleLogoutMediaSilo}
+                    disabled={isMediaSiloBusy}
+                    title="Disconnect MediaSilo session"
+                  >
+                    Sign Out
+                  </button>
+                )}
+              </div>
+
+              {!mediaSiloStatus?.connected && mediaSiloStatus?.message && (
+                <div className="media-silo-help-row">
+                  <span className="media-silo-help-text">{mediaSiloStatus.message}</span>
+                </div>
               )}
             </div>
           </div>

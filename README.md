@@ -84,7 +84,7 @@ interface RenderPlan {
   source: VideoMetadata;       // Source video
   jobs: RenderJob[];           // All jobs in plan
   outputDirTemplate: string;   // Output directory
-  filenameTemplate: string;    // Filename pattern
+  filenamePattern: string;     // Filename pattern
   status: PlanStatus;          // Overall status
   progress: number;            // Overall progress
   logs: LogEntry[];            // Execution logs
@@ -192,17 +192,12 @@ Handle different aspect ratios:
 
 **Decision**: We validate the directory path exists before starting export, but don't create intermediate dirs in preset system.
 
-### Filename Templates
-**Supported Placeholders**:
-- `{preset}` - Preset ID
-- `{name}` - Preset name
-- `{width}x{height}` - Output resolution
-- `{timestamp}` - ISO date (YYYY-MM-DD)
-- `{ext}` - File extension from preset
+### Output Filenames
+**Behavior**: Filenames are generated automatically during render plan creation using a fixed internal pattern.
 
-**Edge Case**: Invalid characters in placeholders may cause filename errors. We sanitize output paths before passing to FFmpeg.
+**Edge Case**: Source and preset values may include characters invalid for file names. We sanitize output paths before passing them to FFmpeg.
 
-**Decision**: Filenames are generated during render plan creation, allowing preview before export.
+**Decision**: Filename generation is automatic so users only need to choose source video, presets, and output directory.
 
 ### Codec Availability
 **Assumption**: Common codecs (h264, h265, vp9) are available in the user's FFmpeg build.

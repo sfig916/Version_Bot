@@ -113,7 +113,7 @@ export function generateRenderJobs(
   source: VideoMetadata,
   presets: OutputPreset[],
   outputDirTemplate: string,
-  filenameTemplate: string
+  filenamePattern: string
 ): RenderJob[] {
   return presets.map((preset) => {
     const jobId = randomUUID();
@@ -134,7 +134,7 @@ export function generateRenderJobs(
 
     // Generate output filename
     const timestamp = new Date().toISOString().split('T')[0];
-    const outputFilename = filenameTemplate
+    const outputFilename = filenamePattern
       .replace(/{source}/g, getBaseFilename(source.filePath))
       .replace(/{presetId}/g, preset.id)
       .replace(/{preset}/g, preset.id)
@@ -211,7 +211,7 @@ export function createRenderPlan(
   source: VideoMetadata,
   presets: OutputPreset[],
   outputDirTemplate: string,
-  filenameTemplate: string = '{preset}_{width}x{height}_{timestamp}.{ext}',
+  filenamePattern: string = '{preset}_{width}x{height}_{timestamp}.{ext}',
   fileSizeConstraints?: Map<string, number>
 ): RenderPlan {
   const planId = randomUUID();
@@ -219,7 +219,7 @@ export function createRenderPlan(
     source,
     presets,
     outputDirTemplate,
-    filenameTemplate
+    filenamePattern
   );
 
   if (fileSizeConstraints) {
@@ -231,7 +231,7 @@ export function createRenderPlan(
     source,
     jobs,
     outputDirTemplate,
-    filenameTemplate,
+    filenamePattern,
     status: 'pending',
     progress: 0,
     createdAt: new Date(),

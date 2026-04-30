@@ -137,14 +137,14 @@ describe('Render Plan Generator', () => {
       expect(plan.status).toBe('pending');
     });
 
-    it('should generate output paths from filename template', () => {
+    it('should generate output paths from filename pattern', () => {
       const presets = [mockPreset];
-      const template = '{preset}_{width}x{height}.{ext}';
+      const pattern = '{preset}_{width}x{height}.{ext}';
       const plan = createRenderPlan(
         mockVideoMetadata,
         presets,
         '/output',
-        template
+        pattern
       );
 
       expect(plan.jobs[0].outputPath).toContain('1080p');

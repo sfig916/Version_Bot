@@ -131,8 +131,8 @@ export interface RenderPlan {
   jobs: RenderJob[];
   /** Output directory template */
   outputDirTemplate: string;
-  /** Filename template with placeholders: {preset}, {width}x{height}, {timestamp} */
-  filenameTemplate: string;
+  /** Internal filename pattern used to generate output names */
+  filenamePattern: string;
   /** Overall plan status */
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   /** Overall progress 0-100 */
