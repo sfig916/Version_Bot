@@ -10,7 +10,8 @@
     "dev": "concurrently npm:dev:main npm:dev:renderer",
     "dev:main": "tsc -w --project src/main/tsconfig.json",
     "dev:renderer": "vite dev",
-    "build": "npm run build:main && npm run build:renderer",
+    "build": "npm run build:main && npm run build:renderer && npm run build:presets",
+    "build:presets": "node -e \"const fs=require('fs'); if(!fs.existsSync('dist/presets')) fs.mkdirSync('dist/presets',{recursive:true}); fs.readdirSync('presets').forEach(f=>fs.copyFileSync('presets/'+f,'dist/presets/'+f)); console.log('Copied presets to dist/presets');\"",
     "build:main": "tsc --project src/main/tsconfig.json",
     "build:renderer": "vite build",
     "pack": "electron-builder --dir",
@@ -59,10 +60,14 @@
     "directories": {
       "buildResources": "assets"
     },
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**/*",
+      "node_modules/ffprobe-static/**/*"
+    ],
     "publish": {
       "provider": "github",
-      "owner": "your-github-username",
-      "repo": "version-bot"
+      "owner": "sfig916",
+      "repo": "Version_Bot"
     },
     "files": [
       "dist/main/**/*",
@@ -73,6 +78,7 @@
     ],
     "win": {
       "signAndEditExecutable": false,
+      "icon": "assets/icon.ico",
       "target": [
         "nsis"
       ]
@@ -83,6 +89,7 @@
       "artifactName": "Version-Bot-Setup-${version}.${ext}"
     },
     "mac": {
+      "icon": "assets/icon.png",
       "target": [
         "dmg",
         "zip"

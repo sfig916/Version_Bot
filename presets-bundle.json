@@ -1,0 +1,205 @@
+{
+  "version": "0.1.0",
+  "presets": [
+    {
+      "id": "sony_esrb",
+      "name": "SONY ESRB",
+      "resolutionWidth": 1920,
+      "resolutionHeight": 1080,
+      "aspectRatio": "16:9",
+      "slatesEnabled": true,
+      "slateConfig": {
+        "prepend": ["1777393988423-3ac9bd08f702e"],
+        "append": ["1777394031527-8227f802ee52e"]
+      },
+      "overlaysEnabled": true,
+      "overlayConfig": [
+        { "id": "1777398769343-2a71bc00e4ded" }
+      ]
+    },
+    {
+      "id": "bnet_esrb",
+      "name": "BNET ESRB",
+      "resolutionWidth": 1920,
+      "resolutionHeight": 1080,
+      "aspectRatio": "16:9",
+      "slatesEnabled": true,
+      "slateConfig": {
+        "append": ["1777400922281-b3689073c9a03"]
+      },
+      "overlaysEnabled": true,
+      "overlayConfig": [
+        { "id": "1777398769343-2a71bc00e4ded" }
+      ]
+    },
+    {
+      "id": "unbranded_esrb",
+      "name": "Unbranded ESRB",
+      "resolutionWidth": 1920,
+      "resolutionHeight": 1080,
+      "aspectRatio": "16:9",
+      "slatesEnabled": false,
+      "overlaysEnabled": true,
+      "overlayConfig": [
+        { "id": "1777398769343-2a71bc00e4ded" }
+      ]
+    },
+    {
+      "id": "xbox_esrb",
+      "name": "Xbox ESRB",
+      "resolutionWidth": 1920,
+      "resolutionHeight": 1080,
+      "aspectRatio": "16:9",
+      "slatesEnabled": true,
+      "slateConfig": {
+        "append": ["1777400897410-12af51068872a"]
+      },
+      "overlaysEnabled": true,
+      "overlayConfig": [
+        { "id": "1777398769343-2a71bc00e4ded" }
+      ]
+    },
+    {
+      "id": "steam_esrb",
+      "name": "Steam ESRB",
+      "resolutionWidth": 1920,
+      "resolutionHeight": 1080,
+      "aspectRatio": "16:9",
+      "slatesEnabled": true,
+      "slateConfig": {
+        "append": ["1777400928020-971a446dbbaba"]
+      },
+      "overlaysEnabled": true,
+      "overlayConfig": [
+        { "id": "1777398769343-2a71bc00e4ded" }
+      ]
+    },
+    {
+      "id": "sony_no_esrb",
+      "name": "SONY No ESRB",
+      "resolutionWidth": 1920,
+      "resolutionHeight": 1080,
+      "aspectRatio": "16:9",
+      "slatesEnabled": true,
+      "slateConfig": {
+        "prepend": ["1777393988423-3ac9bd08f702e"],
+        "append": ["1777394031527-8227f802ee52e"]
+      },
+      "overlaysEnabled": false
+    },
+    {
+      "id": "bnet_no_esrb",
+      "name": "BNET No ESRB",
+      "resolutionWidth": 1920,
+      "resolutionHeight": 1080,
+      "aspectRatio": "16:9",
+      "slatesEnabled": true,
+      "slateConfig": {
+        "append": ["1777400922281-b3689073c9a03"]
+      },
+      "overlaysEnabled": false
+    },
+    {
+      "id": "xbox_no_esrb",
+      "name": "Xbox No ESRB",
+      "resolutionWidth": 1920,
+      "resolutionHeight": 1080,
+      "aspectRatio": "16:9",
+      "slatesEnabled": true,
+      "slateConfig": {
+        "append": ["1777400897410-12af51068872a"]
+      },
+      "overlaysEnabled": false
+    },
+    {
+      "id": "steam_no_esrb",
+      "name": "Steam No ESRB",
+      "resolutionWidth": 1920,
+      "resolutionHeight": 1080,
+      "aspectRatio": "16:9",
+      "slatesEnabled": true,
+      "slateConfig": {
+        "append": ["1777400928020-971a446dbbaba"]
+      },
+      "overlaysEnabled": false
+    }
+  ],
+  "assetLibraries": {
+    "version-bot-prepend-library": [
+      {
+        "id": "1777393988423-3ac9bd08f702e",
+        "name": "SONY Intro",
+        "key": "sony_intro",
+        "source": "local",
+        "path": "assets/SIE_BING_2_1_4K_5994f_05s_V002.mov",
+        "duration": 1
+      }
+    ],
+    "version-bot-append-library": [
+      {
+        "id": "1777394031527-8227f802ee52e",
+        "name": "Sony Outro",
+        "key": "sony_outro",
+        "source": "local",
+        "path": "assets/SIE_BONG_2_1_3P_LEGAL_2026_EN_R_20s_4K_5994f_01.mov",
+        "duration": 2
+      },
+      {
+        "id": "1777400897410-12af51068872a",
+        "name": "Xbox Outro",
+        "key": "xbox_outro",
+        "source": "local",
+        "path": "assets/CHMREV_INT_4K_XboxMnem_16x9.mov",
+        "duration": 1
+      },
+      {
+        "id": "1777400922281-b3689073c9a03",
+        "name": "BNET Outro 2026",
+        "key": "bnet_outro_2026",
+        "source": "local",
+        "path": "assets/2026_BNET.mov",
+        "duration": 4
+      },
+      {
+        "id": "1777400928020-971a446dbbaba",
+        "name": "Steam Outro 2026",
+        "key": "steam_outro_2026",
+        "source": "local",
+        "path": "assets/2026_Steam.mov",
+        "duration": 4
+      }
+    ],
+    "version-bot-overlay-library": [
+      {
+        "id": "1777398769343-2a71bc00e4ded",
+        "name": "BO7 S1 ESRB Upper R",
+        "key": "bo7_s1_esrb_upper_r",
+        "source": "local",
+        "path": "assets/BO7_S1_Toolkit_MGFX_ESRB_M_upper_R_4K_v01.png"
+      },
+      {
+        "id": "1777398769343-51b198ccb98ac",
+        "name": "BO7 S1 ESRB Upper L",
+        "key": "bo7_s1_esrb_upper_l",
+        "source": "local",
+        "path": "assets/BO7_S1_Toolkit_MGFX_ESRB_M_upper_L_4K_v01.png"
+      },
+      {
+        "id": "1777398769343-69f88e24712e3",
+        "name": "BO7 S1 ESRB Lower R",
+        "key": "bo7_s1_esrb_lower_r",
+        "source": "local",
+        "path": "assets/BO7_S1_Toolkit_MGFX_ESRB_M_lower_R_4K_v01 (1).png"
+      },
+      {
+        "id": "1777398769343-49c7bce31d6c6",
+        "name": "BO7 S1 ESRB Lower L",
+        "key": "bo7_s1_esrb_lower_l",
+        "source": "local",
+        "path": "assets/BO7_S1_Toolkit_MGFX_ESRB_M_lower_L_4K_v01.png"
+      }
+    ]
+  },
+  "releaseNotes": "v0.1.0 - Initial preset bundle with all default presets and asset libraries.",
+  "releasedAt": "2026-05-01T00:00:00Z"
+}
