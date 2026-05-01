@@ -1,6 +1,6 @@
 {
   "name": "version-bot",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Cross-platform desktop app for video versioning and batch export",
   "main": "dist/main/main/index.js",
   "homepage": "./",
@@ -91,8 +91,14 @@
     "mac": {
       "icon": "assets/icon.png",
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        },
+        {
+          "target": "zip",
+          "arch": ["universal"]
+        }
       ]
     },
     "linux": {
