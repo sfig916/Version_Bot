@@ -1,6 +1,6 @@
 {
   "name": "version-bot",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Cross-platform desktop app for video versioning and batch export",
   "main": "dist/main/main/index.js",
   "homepage": "./",
