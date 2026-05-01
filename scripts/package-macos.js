@@ -348,10 +348,7 @@ async function main() {
     copyDir(macAppSourceDir, macReleaseAppDir);
     logSuccess(`macOS release folder created at ${path.relative(projectRoot, macReleaseDir)}`);
 
-    logStep('4/5', 'Bundling presets, asset libraries, and media files...');
-    await bundlePortableUserData(macReleaseDir, projectRoot);
-
-    logStep('5/5', 'Creating zip archive...');
+    logStep('4/5', 'Creating zip archive...');
     if (fs.existsSync(zipPath)) {
       fs.unlinkSync(zipPath);
     }
@@ -359,15 +356,14 @@ async function main() {
 
     log('\n' + '='.repeat(60), 'green');
     logSuccess('Packaging complete!');
-    log('\nDistributable files:', 'yellow');
-    log('  Folder: dist/release/Version-Bot-macOS/', 'yellow');
+    log('\nDistributable file:', 'yellow');
     log('  Archive: dist/release/Version-Bot-macOS.zip', 'yellow');
     log('\nInstructions for distribution:', 'yellow');
     log('  1. Run npm run package:macos on a Mac', 'yellow');
     log('  2. Share Version-Bot-macOS.zip with Mac users', 'yellow');
     log('  3. They extract the zip and open Version Bot.app', 'yellow');
     log('  4. If Gatekeeper warns, right-click the app and choose Open', 'yellow');
-    log('  5. Presets and assets are pre-configured in user-data/', 'yellow');
+    log('  5. Presets are pre-configured; users add their own assets in-app', 'yellow');
     log('='.repeat(60) + '\n', 'green');
   } catch (error) {
     logError(error.message);

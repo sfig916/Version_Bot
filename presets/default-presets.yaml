@@ -1,0 +1,138 @@
+metadata:
+  version: "1.0"
+  description: Default export presets for Version Bot
+presets:
+  - id: sony_esrb
+    name: SONY ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    introSlate:
+      enabled: true
+    outroSlate:
+      enabled: true
+    overlay:
+      enabled: true
+      duration: 4
+  - id: bnet_esrb
+    name: BNET ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true
+    overlay:
+      enabled: true
+      duration: 4
+  - id: unbranded_esrb
+    name: Unbranded ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    overlay:
+      enabled: true
+      duration: 4
+  - id: xbox_esrb
+    name: Xbox ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true
+    overlay:
+      enabled: true
+      duration: 4
+  - id: steam_esrb
+    name: Steam ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true
+    overlay:
+      enabled: true
+      duration: 4
+  - id: sony_no_esrb
+    name: SONY No ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    introSlate:
+      enabled: true
+    outroSlate:
+      enabled: true
+  - id: bnet_no_esrb
+    name: BNET No ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true
+  - id: xbox_no_esrb
+    name: Xbox No ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true
+  - id: steam_no_esrb
+    name: Steam No ESRB
+    width: 1920
+    height: 1080
+    scalingMode: scale
+    bitrate: 50000
+    videoCodec: h264
+    audioBitrate: 320
+    audioCodec: aac
+    container: mp4
+    maxFileSizeMB: 0
+    outroSlate:
+      enabled: true

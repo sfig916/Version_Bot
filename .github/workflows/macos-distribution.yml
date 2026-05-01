@@ -1,0 +1,106 @@
+name: Build macOS Distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      notarize:
+        description: Build signed and notarized macOS artifacts (requires Apple and cert secrets)
+        required: true
+        default: false
+        type: boolean
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare macOS signing certificate
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.notarize || github.event_name != 'workflow_dispatch' }}
+        shell: bash
+        env:
+          MAC_CSC_LINK_B64: ${{ secrets.MAC_CSC_LINK_B64 }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+        run: |
+          if [ -z "$MAC_CSC_LINK_B64" ]; then
+            echo "Missing secret MAC_CSC_LINK_B64" >&2
+            exit 1
+          fi
+          if [ -z "$MAC_CSC_KEY_PASSWORD" ]; then
+            echo "Missing secret MAC_CSC_KEY_PASSWORD" >&2
+            exit 1
+          fi
+
+          CERT_PATH="$GITHUB_WORKSPACE/macos-signing-cert.p12"
+          echo "$MAC_CSC_LINK_B64" | base64 --decode > "$CERT_PATH"
+
+          {
+            echo "CSC_LINK=$CERT_PATH"
+            echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Validate notarization secrets
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.notarize || github.event_name != 'workflow_dispatch' }}
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_ID" ]; then
+            echo "Missing secret APPLE_ID" >&2
+            exit 1
+          fi
+          if [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
+            echo "Missing secret APPLE_APP_SPECIFIC_PASSWORD" >&2
+            exit 1
+          fi
+          if [ -z "$APPLE_TEAM_ID" ]; then
+            echo "Missing secret APPLE_TEAM_ID" >&2
+            exit 1
+          fi
+
+      - name: Build unsigned macOS artifacts
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.notarize }}
+        run: |
+          npm run build
+          npx electron-builder --mac dmg zip --publish never
+
+      - name: Build signed and notarized macOS artifacts
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.notarize || github.event_name != 'workflow_dispatch' }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          npm run build
+          npx electron-builder --mac dmg zip --publish never
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-bot-macos
+          path: |
+            dist/*.dmg
+            dist/*-mac.zip
+            dist/*.blockmap
+
+      - name: Cleanup signing certificate
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$GITHUB_WORKSPACE/macos-signing-cert.p12"

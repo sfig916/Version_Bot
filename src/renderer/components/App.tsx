@@ -18,6 +18,7 @@ import PresetManager from './PresetManager';
 import AssetLibraryManager from './AssetLibraryManager';
 import RenderPlanner from './RenderPlanner';
 import ErrorBanner from './ErrorBanner';
+import { UpdatePanel } from './UpdatePanel';
 import './App.css';
 
 class AssetLibraryErrorBoundary extends React.Component<
@@ -49,7 +50,14 @@ class AssetLibraryErrorBoundary extends React.Component<
   }
 }
 
-type AppView = 'video-select' | 'preset-select' | 'render-plan' | 'exporting' | 'preset-manager' | 'asset-library-manager';
+type AppView =
+  | 'video-select'
+  | 'preset-select'
+  | 'render-plan'
+  | 'exporting'
+  | 'preset-manager'
+  | 'asset-library-manager'
+  | 'updates';
 
 interface JobProgressEvent {
   jobId: string;
@@ -146,6 +154,15 @@ export default function App() {
   useEffect(() => {
     loadPresets();
     refreshMediaSiloStatus();
+  }, []);
+
+  useEffect(() => {
+    const handleBundleUpdated = () => {
+      void loadPresets();
+    };
+
+    window.addEventListener('bundleUpdated', handleBundleUpdated);
+    return () => window.removeEventListener('bundleUpdated', handleBundleUpdated);
   }, []);
 
   const refreshMediaSiloStatus = async () => {
@@ -648,6 +665,15 @@ export default function App() {
                   <span className="media-silo-help-text">{mediaSiloStatus.message}</span>
                 </div>
               )}
+
+              <div className="media-silo-help-row">
+                <button
+                  className="btn btn-nav"
+                  onClick={() => setState((prev) => ({ ...prev, currentView: 'updates' }))}
+                >
+                  Updates
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -690,6 +716,19 @@ export default function App() {
               onBack={() => setState((prev) => ({ ...prev, currentView: 'video-select' }))}
             />
           </AssetLibraryErrorBoundary>
+        )}
+
+        {state.currentView === 'updates' && (
+          <div>
+            <button
+              className="btn btn-secondary btn-small"
+              onClick={() => setState((prev) => ({ ...prev, currentView: 'video-select' }))}
+              style={{ marginBottom: '12px' }}
+            >
+              Back
+            </button>
+            <UpdatePanel />
+          </div>
         )}
 
         {state.currentView === 'preset-select' && state.selectedVideo && (

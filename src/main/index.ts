@@ -30,6 +30,14 @@ import {
   MediaSiloSyncSummary,
 } from '../core/models/types';
 import { runPlan, JobProgress, JobResult } from '../core/rendering/ffmpegRunner';
+import {
+  initializeAutoUpdater,
+  getAppUpdateStatus,
+  checkForAppUpdates,
+  quitAndInstallUpdate,
+  checkForBundleUpdates,
+  downloadAndMergeBundle,
+} from '../core/updates/updateManager';
 
 const logger = getLogger('main');
 let mainWindow: BrowserWindow | null = null;
@@ -142,6 +150,108 @@ function migrateLegacyUserDataIfNeeded(): void {
 
 function getUserPresetsFilePath(presetsDir?: string): string {
   return path.join(getPresetsDir(presetsDir), 'user-presets.yaml');
+}
+
+function getBundledDefaultPresetsPath(): string | undefined {
+  const candidates = [
+    path.join(app.getAppPath(), 'presets', 'default-presets.yaml'),
+    path.join(__dirname, '../../presets/default-presets.yaml'),
+  ];
+
+  // macOS app bundle specific path for custom packaging scripts
+  if (process.platform === 'darwin') {
+    candidates.push(
+      path.resolve(__dirname, '../..', 'presets', 'default-presets.yaml')
+    );
+  }
+
+  const found = candidates.find((candidatePath) => fs.existsSync(candidatePath));
+  if (found) {
+    logger.debug('Found bundled default presets', { path: found });
+  } else {
+    logger.warn('Bundled default presets not found in any candidate paths', {
+      candidates: candidates.slice(0, 2),
+    });
+  }
+  return found;
+}
+
+function seedDefaultPresetsIfNeeded(): boolean {
+  const userPresetsPath = getUserPresetsFilePath();
+  if (fs.existsSync(userPresetsPath)) {
+    return false; // User already has presets — don't overwrite
+  }
+
+  const defaultPresetsPath = getBundledDefaultPresetsPath();
+  if (!defaultPresetsPath) {
+    logger.warn('Default presets file not found in app bundle');
+    return false;
+  }
+
+  try {
+    const presetsDir = getPresetsDir();
+    if (!fs.existsSync(presetsDir)) {
+      fs.mkdirSync(presetsDir, { recursive: true });
+    }
+    fs.copyFileSync(defaultPresetsPath, userPresetsPath);
+    logger.info('Seeded default presets on first launch', { userPresetsPath });
+    return true;
+  } catch (error) {
+    logger.warn('Failed to seed default presets', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
+
+function seedDefaultAssetLibrariesIfNeeded(): void {
+  const libraryNames = [
+    'version-bot-prepend-library',
+    'version-bot-append-library',
+    'version-bot-overlay-library',
+  ] as const;
+
+  for (const libraryName of libraryNames) {
+    const filePath = path.join(app.getPath('userData'), `${libraryName}.json`);
+
+    try {
+      if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, '[]', 'utf-8');
+        continue;
+      }
+
+      const parsed: unknown = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      if (!Array.isArray(parsed)) {
+        fs.writeFileSync(filePath, '[]', 'utf-8');
+        continue;
+      }
+
+      let changed = false;
+      const sanitized = parsed.map((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          return item;
+        }
+
+        const record = item as Record<string, unknown>;
+        if (typeof record.path !== 'string' || !record.path.trim()) {
+          return item;
+        }
+
+        changed = true;
+        const { path: _discardedPath, ...withoutPath } = record;
+        return withoutPath;
+      });
+
+      if (changed) {
+        fs.writeFileSync(filePath, JSON.stringify(sanitized, null, 2), 'utf-8');
+      }
+    } catch (error) {
+      logger.warn('Failed to seed/sanitize asset library defaults', {
+        libraryName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 }
 
 function getAssetOverridesFilePath(): string {
@@ -687,17 +797,17 @@ async function ensurePresetStoreInitialized(presetsDir?: string): Promise<void> 
 
   const presetFiles = listPresetFiles(dir);
   if (presetFiles.length === 0) {
-    // Try to load bundled presets from the app resources
-    const bundledPresetsPath = path.join(__dirname, '../../presets/user-presets.yaml');
+    // Try to load bundled default presets from the app resources
+    const bundledPresetsPath = getBundledDefaultPresetsPath();
     let presetsToSave = createExamplePresets();
 
-    if (fs.existsSync(bundledPresetsPath)) {
+    if (bundledPresetsPath) {
       try {
-        logger.info(`Loading bundled presets from: ${bundledPresetsPath}`);
+        logger.info(`Loading bundled default presets from: ${bundledPresetsPath}`);
         presetsToSave = await loadPresetsFromFile(bundledPresetsPath);
-        logger.info(`Loaded ${presetsToSave.length} bundled presets`);
+        logger.info(`Loaded ${presetsToSave.length} bundled default presets`);
       } catch (error) {
-        logger.warn('Failed to load bundled presets, using defaults', {
+        logger.warn('Failed to load bundled default presets, using built-in examples', {
           error: error instanceof Error ? error.message : String(error),
         });
         presetsToSave = createExamplePresets();
@@ -738,8 +848,67 @@ function createWindow() {
   logger.info('Main window created');
 }
 
+ipcMain.handle('get-app-update-status', async () => {
+  try {
+    return { success: true, data: getAppUpdateStatus() };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('check-app-updates', async () => {
+  try {
+    const status = await checkForAppUpdates();
+    return { success: true, data: status };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('quit-and-install-update', async () => {
+  try {
+    quitAndInstallUpdate();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('check-bundle-updates', async (_event, bundleUrl: string, currentVersion?: string) => {
+  try {
+    const result = await checkForBundleUpdates(bundleUrl, currentVersion);
+    return { success: true, data: result };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle(
+  'download-and-merge-bundle',
+  async (
+    _event,
+    bundleUrl: string,
+    existingPresets: Record<string, unknown>,
+    existingAssets: Record<string, unknown>
+  ) => {
+    try {
+      const result = await downloadAndMergeBundle(bundleUrl, existingPresets, existingAssets);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  }
+);
+
 app.on('ready', () => {
-  migrateLegacyUserDataIfNeeded();
+  if (!app.isPackaged) {
+    migrateLegacyUserDataIfNeeded();
+  }
+  const seededDefaultPresets = seedDefaultPresetsIfNeeded();
+  if (seededDefaultPresets) {
+    seedDefaultAssetLibrariesIfNeeded();
+  }
+  initializeAutoUpdater();
   createWindow();
 });
 

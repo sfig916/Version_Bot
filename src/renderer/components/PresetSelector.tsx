@@ -30,11 +30,11 @@ const APPEND_LIBRARY_STORAGE_KEY = 'version-bot-append-library';
 const OVERLAY_LIBRARY_STORAGE_KEY = 'version-bot-overlay-library';
 
 const RESOLUTION_OPTIONS = [
-  { value: '3840x2160', label: '16:9 4K', width: 3840, height: 2160 },
-  { value: '1920x1080', label: '16:9', width: 1920, height: 1080 },
-  { value: '1080x1920', label: '9:16', width: 1080, height: 1920 },
-  { value: '1080x1080', label: '1:1', width: 1080, height: 1080 },
-  { value: '1080x1350', label: '4:5', width: 1080, height: 1350 },
+  { value: '3840x2160', aspect: '16:9', width: 3840, height: 2160 },
+  { value: '1920x1080', aspect: '16:9', width: 1920, height: 1080 },
+  { value: '1080x1920', aspect: '9:16', width: 1080, height: 1920 },
+  { value: '1080x1080', aspect: '1:1', width: 1080, height: 1080 },
+  { value: '1080x1350', aspect: '4:5', width: 1080, height: 1350 },
 ] as const;
 
 // Must match ffmpeg output frame rate (fps=60000/1001)
@@ -104,6 +104,10 @@ function combineDurationPartsToSeconds(secondsPart: string, framesPart: string):
 function formatDurationWithFrames(durationSeconds: number): string {
   const parts = splitDurationToParts(durationSeconds);
   return ` (${parts.seconds}s ${parts.frames}f)`;
+}
+
+function formatResolutionOption(option: (typeof RESOLUTION_OPTIONS)[number]): string {
+  return `${option.aspect} (${option.width}×${option.height})`;
 }
 
 
@@ -675,6 +679,185 @@ export default function PresetSelector({
     return !preset.overlay.assetPath && !preset.overlay.assetRef?.key;
   };
 
+  const renderPresetBuilder = (mode: 'new' | 'edit') => (
+    <div className={`preset-builder ${mode === 'edit' ? 'preset-builder-inline' : ''}`}>
+      <h3>{mode === 'edit' ? 'Update Preset' : 'Create Custom Preset'}</h3>
+
+      <div className="builder-grid">
+        <div className="form-group">
+          <label>Preset Name</label>
+          <input
+            type="text"
+            value={draft.name}
+            placeholder="Social 1080p"
+            onChange={(e) => handleDraftNameChange(e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Aspect Ratio / Resolution</label>
+          <select
+            value={getResolutionOptionValue(draft.width, draft.height)}
+            onChange={(e) => setResolutionOption(e.target.value)}
+          >
+            {RESOLUTION_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {formatResolutionOption(option)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label>Bitrate (Mbps)</label>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={hasMaxFileSize ? 'Auto' : draft.bitrate}
+            placeholder="Auto"
+            disabled={hasMaxFileSize}
+            readOnly={hasMaxFileSize}
+            onChange={(e) => updateDraft('bitrate', e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Audio Bitrate (kbps)</label>
+          <input
+            type="number"
+            min={1}
+            value={draft.audioBitrate}
+            onChange={(e) => updateDraft('audioBitrate', e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Max Filesize (MB, optional)</label>
+          <input
+            type="number"
+            min={0}
+            placeholder="0 = no limit"
+            value={draft.maxFileSizeMB}
+            onChange={(e) => updateDraft('maxFileSizeMB', e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="asset-sections">
+        <div className="asset-card">
+          <label className="toggle-label">
+            <input
+              type="checkbox"
+              checked={draft.introEnabled}
+              onChange={(e) => updateDraft('introEnabled', e.target.checked)}
+            />
+            Enable Prepend
+          </label>
+          {draft.introEnabled && (
+            prependLibrary.length === 0 ? (
+              <p className="help-text">No prepend assets in library. Add some in Manage Assets.</p>
+            ) : (
+              <select
+                value={draft.introLibraryId}
+                onChange={(e) => updateDraft('introLibraryId', e.target.value)}
+              >
+                <option value="">— Select prepend asset —</option>
+                {prependLibrary.map((asset) => (
+                  <option key={asset.id} value={asset.id}>{asset.name}</option>
+                ))}
+              </select>
+            )
+          )}
+        </div>
+
+        <div className="asset-card">
+          <label className="toggle-label">
+            <input
+              type="checkbox"
+              checked={draft.outroEnabled}
+              onChange={(e) => updateDraft('outroEnabled', e.target.checked)}
+            />
+            Enable Append
+          </label>
+          {draft.outroEnabled && (
+            appendLibrary.length === 0 ? (
+              <p className="help-text">No append assets in library. Add some in Manage Assets.</p>
+            ) : (
+              <select
+                value={draft.outroLibraryId}
+                onChange={(e) => updateDraft('outroLibraryId', e.target.value)}
+              >
+                <option value="">— Select append asset —</option>
+                {appendLibrary.map((asset) => (
+                  <option key={asset.id} value={asset.id}>{asset.name}</option>
+                ))}
+              </select>
+            )
+          )}
+        </div>
+
+        <div className="asset-card">
+          <label className="toggle-label">
+            <input
+              type="checkbox"
+              checked={draft.overlayEnabled}
+              onChange={(e) => updateDraft('overlayEnabled', e.target.checked)}
+            />
+            Enable Overlay
+          </label>
+          {draft.overlayEnabled && (
+            <>
+              <div className="duration-grid">
+                <div className="duration-field">
+                  <label>Seconds</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={draft.overlayDurationSeconds}
+                    onChange={(e) => updateDraft('overlayDurationSeconds', e.target.value)}
+                  />
+                </div>
+                <div className="duration-field">
+                  <label>Frames</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={draft.overlayDurationFrames}
+                    onChange={(e) => updateDraft('overlayDurationFrames', e.target.value)}
+                  />
+                </div>
+              </div>
+              {overlayLibrary.length === 0 ? (
+                <p className="help-text">No overlay assets in library. Add some in Manage Assets.</p>
+              ) : (
+                <select
+                  value={draft.overlayLibraryId}
+                  onChange={(e) => updateDraft('overlayLibraryId', e.target.value)}
+                >
+                  <option value="">— Select overlay asset —</option>
+                  {overlayLibrary.map((asset) => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="builder-actions">
+        <button className="btn btn-secondary" onClick={handleSavePreset}>
+          {mode === 'edit' ? 'Save Preset Changes' : 'Add Preset'}
+        </button>
+        <button className="btn" onClick={handleCancelEdit}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="preset-selector">
       <div className="ps-header">
@@ -747,238 +930,66 @@ export default function PresetSelector({
               {sortedPresets.map((preset) => {
                 const isSelected = selectedPresetIds.includes(preset.id);
                 return (
-                  <tr key={preset.id} className={isSelected ? 'row-selected' : ''}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onPresetToggle(preset.id)}
-                      />
-                    </td>
-                    <td>{preset.name}</td>
-                    <td className={isSlateMissing(preset.introSlate) ? 'overlay-missing' : ''}>
-                      {getIntroDisplay(preset.introSlate)}
-                    </td>
-                    <td className={isSlateMissing(preset.outroSlate) ? 'overlay-missing' : ''}>
-                      {getOutroDisplay(preset.outroSlate)}
-                    </td>
-                    <td className={isOverlayAssetMissing(preset) ? 'overlay-missing' : ''}>
-                      {getOverlayDisplay(preset)}
-                    </td>
-                    <td>{formatAspectRatioLabel(preset.width, preset.height)}</td>
-                    <td>{preset.width}x{preset.height}</td>
-                    <td>{formatVideoBitrateMbps(preset.bitrate)} Mbps</td>
-                    <td>
-                      {preset.maxFileSizeMB && preset.maxFileSizeMB > 0
-                        ? `${preset.maxFileSizeMB} MB`
-                        : 'No limit'}
-                    </td>
-                    <td>59.94</td>
-                    <td>{preset.videoCodec.toUpperCase()} / {preset.container.toUpperCase()}</td>
-                    <td>{preset.audioCodec.toUpperCase()} @ {preset.audioBitrate || 320} kbps</td>
-                    <td className="preset-row-actions-cell">
-                      <div className="preset-row-actions">
-                        <button
-                          className="btn btn-small btn-secondary"
-                          onClick={() => handleDuplicatePreset(preset)}
-                        >
-                          Duplicate
-                        </button>
-                        <button
-                          className="btn btn-small btn-secondary"
-                          onClick={() => handleEditPreset(preset)}
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                  <React.Fragment key={preset.id}>
+                    <tr className={isSelected ? 'row-selected' : ''}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => onPresetToggle(preset.id)}
+                        />
+                      </td>
+                      <td>{preset.name}</td>
+                      <td className={isSlateMissing(preset.introSlate) ? 'overlay-missing' : ''}>
+                        {getIntroDisplay(preset.introSlate)}
+                      </td>
+                      <td className={isSlateMissing(preset.outroSlate) ? 'overlay-missing' : ''}>
+                        {getOutroDisplay(preset.outroSlate)}
+                      </td>
+                      <td className={isOverlayAssetMissing(preset) ? 'overlay-missing' : ''}>
+                        {getOverlayDisplay(preset)}
+                      </td>
+                      <td>{formatAspectRatioLabel(preset.width, preset.height)}</td>
+                      <td>{preset.width}x{preset.height}</td>
+                      <td>{formatVideoBitrateMbps(preset.bitrate)} Mbps</td>
+                      <td>
+                        {preset.maxFileSizeMB && preset.maxFileSizeMB > 0
+                          ? `${preset.maxFileSizeMB} MB`
+                          : 'No limit'}
+                      </td>
+                      <td>59.94</td>
+                      <td>{preset.videoCodec.toUpperCase()} / {preset.container.toUpperCase()}</td>
+                      <td>{preset.audioCodec.toUpperCase()} @ {preset.audioBitrate || 320} kbps</td>
+                      <td className="preset-row-actions-cell">
+                        <div className="preset-row-actions">
+                          <button
+                            className="btn btn-small btn-secondary"
+                            onClick={() => handleDuplicatePreset(preset)}
+                          >
+                            Duplicate
+                          </button>
+                          <button
+                            className="btn btn-small btn-secondary"
+                            onClick={() => handleEditPreset(preset)}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {showBuilder && editingPresetId === preset.id && (
+                      <tr className="preset-inline-editor-row">
+                        <td colSpan={13}>{renderPresetBuilder('edit')}</td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
           </table>
         </div>
 
-        {showBuilder && (
-          <div className="preset-builder">
-            <h3>{editingPresetId ? 'Update Preset' : 'Create Custom Preset'}</h3>
-
-            <div className="builder-grid">
-            <div className="form-group">
-              <label>Preset Name</label>
-              <input
-                type="text"
-                value={draft.name}
-                placeholder="Social 1080p"
-                onChange={(e) => handleDraftNameChange(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Resolution</label>
-              <select
-                value={getResolutionOptionValue(draft.width, draft.height)}
-                onChange={(e) => setResolutionOption(e.target.value)}
-              >
-                {RESOLUTION_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Bitrate (Mbps)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={hasMaxFileSize ? 'Auto' : draft.bitrate}
-                placeholder="Auto"
-                disabled={hasMaxFileSize}
-                readOnly={hasMaxFileSize}
-                onChange={(e) => updateDraft('bitrate', e.target.value)}
-              />
-            </div>
-
-
-
-            <div className="form-group">
-              <label>Audio Bitrate (kbps)</label>
-              <input
-                type="number"
-                min={1}
-                value={draft.audioBitrate}
-                onChange={(e) => updateDraft('audioBitrate', e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Max Filesize (MB, optional)</label>
-              <input
-                type="number"
-                min={0}
-                placeholder="0 = no limit"
-                value={draft.maxFileSizeMB}
-                onChange={(e) => updateDraft('maxFileSizeMB', e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="asset-sections">
-            <div className="asset-card">
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={draft.introEnabled}
-                  onChange={(e) => updateDraft('introEnabled', e.target.checked)}
-                />
-                Enable Prepend
-              </label>
-              {draft.introEnabled && (
-                prependLibrary.length === 0 ? (
-                  <p className="help-text">No prepend assets in library. Add some in Manage Assets.</p>
-                ) : (
-                  <select
-                    value={draft.introLibraryId}
-                    onChange={(e) => updateDraft('introLibraryId', e.target.value)}
-                  >
-                    <option value="">— Select prepend asset —</option>
-                    {prependLibrary.map((asset) => (
-                      <option key={asset.id} value={asset.id}>{asset.name}</option>
-                    ))}
-                  </select>
-                )
-              )}
-            </div>
-
-            <div className="asset-card">
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={draft.outroEnabled}
-                  onChange={(e) => updateDraft('outroEnabled', e.target.checked)}
-                />
-                Enable Append
-              </label>
-              {draft.outroEnabled && (
-                appendLibrary.length === 0 ? (
-                  <p className="help-text">No append assets in library. Add some in Manage Assets.</p>
-                ) : (
-                  <select
-                    value={draft.outroLibraryId}
-                    onChange={(e) => updateDraft('outroLibraryId', e.target.value)}
-                  >
-                    <option value="">— Select append asset —</option>
-                    {appendLibrary.map((asset) => (
-                      <option key={asset.id} value={asset.id}>{asset.name}</option>
-                    ))}
-                  </select>
-                )
-              )}
-            </div>
-
-            <div className="asset-card">
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={draft.overlayEnabled}
-                  onChange={(e) => updateDraft('overlayEnabled', e.target.checked)}
-                />
-                Enable Overlay
-              </label>
-              {draft.overlayEnabled && (
-                <>
-                  <div className="duration-grid">
-                    <div className="duration-field">
-                      <label>Seconds</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={draft.overlayDurationSeconds}
-                        onChange={(e) => updateDraft('overlayDurationSeconds', e.target.value)}
-                      />
-                    </div>
-                    <div className="duration-field">
-                      <label>Frames</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={draft.overlayDurationFrames}
-                        onChange={(e) => updateDraft('overlayDurationFrames', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  {overlayLibrary.length === 0 ? (
-                    <p className="help-text">No overlay assets in library. Add some in Manage Assets.</p>
-                  ) : (
-                    <select
-                      value={draft.overlayLibraryId}
-                      onChange={(e) => updateDraft('overlayLibraryId', e.target.value)}
-                    >
-                      <option value="">— Select overlay asset —</option>
-                      {overlayLibrary.map((asset) => (
-                        <option key={asset.id} value={asset.id}>{asset.name}</option>
-                      ))}
-                    </select>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-            <div className="builder-actions">
-              <button className="btn btn-secondary" onClick={handleSavePreset}>
-                {editingPresetId ? 'Save Preset Changes' : 'Add Preset'}
-              </button>
-              <button className="btn" onClick={handleCancelEdit}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
+        {showBuilder && !editingPresetId && renderPresetBuilder('new')}
 
         <div className="output-settings">
           <h3>Output Settings</h3>

@@ -1,0 +1,74 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      signed:
+        description: Build signed installer (requires cert secrets)
+        required: true
+        default: true
+        type: boolean
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare signing certificate
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed || github.event_name != 'workflow_dispatch' }}
+        shell: pwsh
+        env:
+          WIN_CSC_LINK_B64: ${{ secrets.WIN_CSC_LINK_B64 }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_LINK_B64)) {
+            throw "Missing secret WIN_CSC_LINK_B64"
+          }
+          if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_KEY_PASSWORD)) {
+            throw "Missing secret WIN_CSC_KEY_PASSWORD"
+          }
+
+          $certPath = Join-Path $env:GITHUB_WORKSPACE "windows-signing-cert.p12"
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WIN_CSC_LINK_B64))
+          Add-Content -Path $env:GITHUB_ENV -Value "CSC_LINK=$certPath"
+          Add-Content -Path $env:GITHUB_ENV -Value "CSC_KEY_PASSWORD=$env:WIN_CSC_KEY_PASSWORD"
+
+      - name: Build unsigned NSIS installer
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.signed }}
+        run: npm run dist:win:installer
+
+      - name: Build signed NSIS installer
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed || github.event_name != 'workflow_dispatch' }}
+        run: npm run dist:win:installer:signed
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-bot-windows-installer
+          path: |
+            dist/Version-Bot-Setup-*.exe
+            dist/Version-Bot-Setup-*.exe.blockmap
+
+      - name: Cleanup signing certificate
+        if: always()
+        shell: pwsh
+        run: |
+          $certPath = Join-Path $env:GITHUB_WORKSPACE "windows-signing-cert.p12"
+          if (Test-Path $certPath) {
+            Remove-Item $certPath -Force
+          }

@@ -1,0 +1,48 @@
+{
+  "version": "0.2.0",
+  "presets": [
+    {
+      "id": "sony_esrb_v2",
+      "name": "Sony ESRB v2.0",
+      "resolutionWidth": 1920,
+      "resolutionHeight": 1080,
+      "aspectRatio": "16:9",
+      "slatesEnabled": true,
+      "slateConfig": {
+        "prepend": ["sony_opening_slate_v2"],
+        "append": ["sony_closing_slate_v2"]
+      },
+      "overlaysEnabled": true,
+      "overlayConfig": [
+        {
+          "id": "esrb_rating",
+          "nicknames": ["esrb", "rating"]
+        }
+      ],
+      "filenamePattern": "{video_name}_Sony_ESRB_v2_{resolution}p.mp4"
+    }
+  ],
+  "assetLibraries": {
+    "version-bot-prepend-library": [
+      {
+        "id": "sony_opening_slate_v2",
+        "name": "Sony Opening Slate v2.0",
+        "key": "sony_opening",
+        "source": "local",
+        "path": "/path/to/sony_opening_v2.mp4",
+        "duration": 2.5
+      }
+    ],
+    "version-bot-overlay-library": [
+      {
+        "id": "esrb_rating_overlay",
+        "name": "ESRB Rating Overlay",
+        "key": "esrb_overlay",
+        "source": "local",
+        "path": "/path/to/esrb_rating.png"
+      }
+    ]
+  },
+  "releaseNotes": "v0.2.0 - Updated Sony ESRB presets with new slate design. Added support for ESRB rating overlays.",
+  "releasedAt": "2026-05-01T00:00:00Z"
+}

@@ -176,6 +176,30 @@ const api = {
     ipcRenderer.removeAllListeners('render-progress');
     ipcRenderer.removeAllListeners('job-complete');
   },
+
+  getAppUpdateStatus: () =>
+    ipcRenderer.invoke('get-app-update-status') as Promise<APIResult<unknown>>,
+
+  checkAppUpdates: () =>
+    ipcRenderer.invoke('check-app-updates') as Promise<APIResult<unknown>>,
+
+  quitAndInstallUpdate: () =>
+    ipcRenderer.invoke('quit-and-install-update') as Promise<APIResult<void>>,
+
+  checkBundleUpdates: (bundleUrl: string, currentVersion?: string) =>
+    ipcRenderer.invoke('check-bundle-updates', bundleUrl, currentVersion) as Promise<APIResult<unknown>>,
+
+  downloadAndMergeBundle: (
+    bundleUrl: string,
+    existingPresets: Record<string, unknown>,
+    existingAssets: Record<string, unknown>
+  ) =>
+    ipcRenderer.invoke(
+      'download-and-merge-bundle',
+      bundleUrl,
+      existingPresets,
+      existingAssets
+    ) as Promise<APIResult<unknown>>,
 };
 
 contextBridge.exposeInMainWorld('versionBotAPI', api);
