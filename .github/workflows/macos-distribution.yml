@@ -39,12 +39,12 @@ jobs:
           MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
         run: |
           if [ -z "$MAC_CSC_LINK_B64" ]; then
-            echo "::warning::Secret MAC_CSC_LINK_B64 not set — skipping code signing"
-            exit 0
+            echo "::error::Secret MAC_CSC_LINK_B64 not set"
+            exit 1
           fi
           if [ -z "$MAC_CSC_KEY_PASSWORD" ]; then
-            echo "::warning::Secret MAC_CSC_KEY_PASSWORD not set — skipping code signing"
-            exit 0
+            echo "::error::Secret MAC_CSC_KEY_PASSWORD not set"
+            exit 1
           fi
 
           CERT_PATH="$GITHUB_WORKSPACE/macos-signing-cert.p12"
@@ -64,16 +64,16 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           if [ -z "$APPLE_ID" ]; then
-            echo "::warning::Secret APPLE_ID not set — skipping notarization"
-            exit 0
+            echo "::error::Secret APPLE_ID not set"
+            exit 1
           fi
           if [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
-            echo "::warning::Secret APPLE_APP_SPECIFIC_PASSWORD not set — skipping notarization"
-            exit 0
+            echo "::error::Secret APPLE_APP_SPECIFIC_PASSWORD not set"
+            exit 1
           fi
           if [ -z "$APPLE_TEAM_ID" ]; then
-            echo "::warning::Secret APPLE_TEAM_ID not set — skipping notarization"
-            exit 0
+            echo "::error::Secret APPLE_TEAM_ID not set"
+            exit 1
           fi
 
       - name: Build unsigned macOS artifacts
