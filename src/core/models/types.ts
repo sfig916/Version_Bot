@@ -87,6 +87,8 @@ export interface OutputPreset {
   audioCodec: 'aac' | 'libopus' | 'libvorbis' | 'mp3';
   /** Container format (mp4, webm, mov) */
   container: 'mp4' | 'webm' | 'mov' | 'mkv';
+  /** Target output FPS */
+  fps: 60 | 59.94 | 30 | 29.97;
   /** Default max output size for this preset in MB (0 = no limit) */
   maxFileSizeMB?: number;
   /** Intro slate configuration */

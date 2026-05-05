@@ -16,18 +16,8 @@ interface SlateAssetOption {
   duration: number;
 }
 
-interface OverlayAssetOption {
-  id: string;
-  name: string;
-  key: string;
-  source: 'local' | 'mediasilo';
-  mediaSiloId?: string;
-  path?: string;
-}
-
 const PREPEND_LIBRARY_KEY = 'version-bot-prepend-library';
 const APPEND_LIBRARY_KEY = 'version-bot-append-library';
-const OVERLAY_LIBRARY_KEY = 'version-bot-overlay-library';
 
 const RESOLUTION_OPTIONS = [
   { value: '3840x2160', label: '16:9 4K', width: 3840, height: 2160 },
@@ -37,8 +27,14 @@ const RESOLUTION_OPTIONS = [
   { value: '1080x1350', label: '4:5', width: 1080, height: 1350 },
 ] as const;
 
-// Must match ffmpeg output frame rate (fps=60000/1001)
-const OUTPUT_FPS = 59.94;
+const FPS_OPTIONS = [60, 59.94, 30, 29.97] as const;
+
+function normalizeFps(value: number | undefined): OutputPreset['fps'] {
+  if (value === 60 || value === 59.94 || value === 30 || value === 29.97) {
+    return value;
+  }
+  return 59.94;
+}
 
 interface PresetManagerProps {
   presets: OutputPreset[];
@@ -53,6 +49,7 @@ interface Draft {
   width: string;
   height: string;
   bitrate: string;
+  fps: string;
   audioBitrate: string;
   maxFileSizeMB: string;
   introEnabled: boolean;
@@ -60,9 +57,6 @@ interface Draft {
   outroEnabled: boolean;
   outroLibraryId: string;
   overlayEnabled: boolean;
-  overlayLibraryId: string;
-  overlayDurationSeconds: string;
-  overlayDurationFrames: string;
 }
 
 const BLANK_DRAFT: Draft = {
@@ -71,6 +65,7 @@ const BLANK_DRAFT: Draft = {
   width: '1920',
   height: '1080',
   bitrate: '50',
+  fps: '59.94',
   audioBitrate: '320',
   maxFileSizeMB: '',
   introEnabled: false,
@@ -78,9 +73,6 @@ const BLANK_DRAFT: Draft = {
   outroEnabled: false,
   outroLibraryId: '',
   overlayEnabled: false,
-  overlayLibraryId: '',
-  overlayDurationSeconds: '4',
-  overlayDurationFrames: '0',
 };
 
 function getBasename(filePath?: string): string {
@@ -97,22 +89,6 @@ function toKey(value: string): string {
     .trim()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
-}
-
-function tokenizeKey(value?: string): string[] {
-  if (!value) return [];
-  return toKey(value)
-    .split('_')
-    .filter(Boolean)
-    .filter((token) => !['toolkit', 'mgfx', 'png', 'jpg', 'jpeg', 'webp', 'bmp', '4k', 'v01', 'v1'].includes(token));
-}
-
-function isTokenSubsetMatch(candidate: string | undefined, reference: string | undefined): boolean {
-  const candidateTokens = tokenizeKey(candidate);
-  const referenceTokens = tokenizeKey(reference);
-
-  return referenceTokens.length > 0
-    && referenceTokens.every((token) => candidateTokens.includes(token));
 }
 
 function formatAspectLabel(width: number, height: number): string {
@@ -135,34 +111,6 @@ function parseVideoBitrateMbps(value: string): number {
   return Math.round(Number(value) * 1000);
 }
 
-function splitDurationToParts(durationSeconds: number): { seconds: string; frames: string } {
-  const normalized = Math.max(0, Number(durationSeconds) || 0);
-  let seconds = Math.floor(normalized);
-  let frames = Math.round((normalized - seconds) * OUTPUT_FPS);
-
-  const roundedFps = Math.round(OUTPUT_FPS);
-  if (frames >= roundedFps) {
-    seconds += 1;
-    frames = 0;
-  }
-
-  return {
-    seconds: String(seconds),
-    frames: String(frames),
-  };
-}
-
-function combineDurationPartsToSeconds(secondsPart: string, framesPart: string): number {
-  const seconds = Math.max(0, parseInt(secondsPart, 10) || 0);
-  const frames = Math.max(0, parseInt(framesPart, 10) || 0);
-  return seconds + (frames / OUTPUT_FPS);
-}
-
-function formatDurationWithFrames(durationSeconds: number): string {
-  const parts = splitDurationToParts(durationSeconds);
-  return ` (${parts.seconds}s ${parts.frames}f)`;
-}
-
 function normalizeLibItem(item: Partial<SlateAssetOption>): SlateAssetOption {
   const name = item.name?.trim() || 'Untitled';
   const key = item.key?.trim() || toKey(name) || `asset_${Date.now()}`;
@@ -177,21 +125,6 @@ function normalizeLibItem(item: Partial<SlateAssetOption>): SlateAssetOption {
   };
 }
 
-function normalizeOverlayItem(item: Partial<OverlayAssetOption>): OverlayAssetOption {
-  const name = item.name?.trim() || 'Untitled Overlay';
-  const path = item.path?.trim();
-  const key = item.key?.trim() || toKey(name) || `overlay_${Date.now()}`;
-
-  return {
-    id: item.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    name,
-    key,
-    source: item.source === 'mediasilo' ? 'mediasilo' : 'local',
-    mediaSiloId: item.mediaSiloId,
-    path,
-  };
-}
-
 export default function PresetManager({
   presets,
   onUpsertPreset,
@@ -203,7 +136,6 @@ export default function PresetManager({
   const [draft, setDraft] = useState<Draft>(BLANK_DRAFT);
   const [prependLib, setPrependLib] = useState<SlateAssetOption[]>([]);
   const [appendLib, setAppendLib] = useState<SlateAssetOption[]>([]);
-  const [overlayLib, setOverlayLib] = useState<OverlayAssetOption[]>([]);
   const hasMaxFileSize = Number(draft.maxFileSizeMB || 0) > 0;
 
   const getSlateDisplayName = (
@@ -223,43 +155,13 @@ export default function PresetManager({
     return slate.assetRef?.key ? slate.assetRef.key : 'Not selected';
   };
 
-  const getOverlayDisplayName = (overlay: OutputPreset['overlay']): string => {
-    if (!overlay?.enabled) return 'None';
-    const duration = overlay.duration && overlay.duration > 0
-      ? formatDurationWithFrames(overlay.duration)
-      : '';
-    if (overlay.assetRef?.key) {
-      const byKey = overlayLib.find((a) => a.key === overlay.assetRef?.key);
-      if (byKey) return `${byKey.name}${duration}`;
-
-      const fuzzyByKey = overlayLib.find(
-        (a) => isTokenSubsetMatch(overlay.assetRef?.key, a.key) || isTokenSubsetMatch(overlay.assetRef?.key, a.name)
-      );
-      if (fuzzyByKey) return `${fuzzyByKey.name}${duration}`;
-    }
-    if (overlay.assetPath) {
-      const byPath = overlayLib.find((a) => a.path === overlay.assetPath);
-      if (byPath) return `${byPath.name}${duration}`;
-
-      const fuzzyByPath = overlayLib.find(
-        (a) => isTokenSubsetMatch(getBasename(overlay.assetPath), a.key) || isTokenSubsetMatch(getBasename(overlay.assetPath), a.name)
-      );
-      if (fuzzyByPath) return `${fuzzyByPath.name}${duration}`;
-
-      return `${getBasename(overlay.assetPath)}${duration}`;
-    }
-    return overlay.assetRef?.key ? `${overlay.assetRef.key}${duration}` : 'Not selected';
-  };
-
   useEffect(() => {
     Promise.all([
       window.versionBotAPI.getAssetLibrary(PREPEND_LIBRARY_KEY),
       window.versionBotAPI.getAssetLibrary(APPEND_LIBRARY_KEY),
-      window.versionBotAPI.getAssetLibrary(OVERLAY_LIBRARY_KEY),
-    ]).then(([pr, ar, or_]) => {
+    ]).then(([pr, ar]) => {
       if (pr.success && pr.data) setPrependLib((pr.data as Partial<SlateAssetOption>[]).map(normalizeLibItem));
       if (ar.success && ar.data) setAppendLib((ar.data as Partial<SlateAssetOption>[]).map(normalizeLibItem));
-      if (or_.success && or_.data) setOverlayLib((or_.data as Partial<OverlayAssetOption>[]).map(normalizeOverlayItem));
     }).catch(() => {});
   }, []);
 
@@ -298,13 +200,13 @@ export default function PresetManager({
 
     setEditingId(preset.id);
     setShowForm(true);
-    const overlayDurationParts = splitDurationToParts(preset.overlay?.duration || 4);
     setDraft({
       id: preset.id,
       name: preset.name,
       width: String(preset.width),
       height: String(preset.height),
       bitrate: formatVideoBitrateMbps(preset.bitrate),
+      fps: String(normalizeFps(preset.fps)),
       audioBitrate: String(preset.audioBitrate || 320),
       maxFileSizeMB: preset.maxFileSizeMB && preset.maxFileSizeMB > 0 ? String(preset.maxFileSizeMB) : '',
       introEnabled: !!preset.introSlate?.enabled,
@@ -312,12 +214,6 @@ export default function PresetManager({
       outroEnabled: !!preset.outroSlate?.enabled,
       outroLibraryId: findSlateId(appendLib, preset.outroSlate?.assetRef?.key, preset.outroSlate?.assetPath),
       overlayEnabled: !!preset.overlay?.enabled,
-      overlayLibraryId:
-        overlayLib.find((a) => preset.overlay?.assetRef?.key && a.key === preset.overlay.assetRef.key)?.id ||
-        overlayLib.find((a) => preset.overlay?.assetPath && a.path === preset.overlay.assetPath)?.id ||
-        '',
-      overlayDurationSeconds: overlayDurationParts.seconds,
-      overlayDurationFrames: overlayDurationParts.frames,
     });
   };
 
@@ -388,6 +284,7 @@ export default function PresetManager({
     const width = Number(draft.width);
     const height = Number(draft.height);
     const bitrate = parseVideoBitrateMbps(draft.bitrate);
+    const fps = normalizeFps(Number(draft.fps));
     const audioBitrate = Number(draft.audioBitrate);
     if (!width || !height || !bitrate || !audioBitrate) {
       alert('Width, height, bitrate and audio bitrate must be positive numbers'); return;
@@ -396,14 +293,13 @@ export default function PresetManager({
 
     const introItem = prependLib.find((a) => a.id === draft.introLibraryId);
     const outroItem = appendLib.find((a) => a.id === draft.outroLibraryId);
-    const overlayItem = overlayLib.find((a) => a.id === draft.overlayLibraryId);
-
     const preset: OutputPreset = {
       id: generatedPresetId,
       name: draft.name.trim(),
       width, height,
       scalingMode: 'scale',
       bitrate,
+      fps,
       videoCodec: 'h264',
       audioBitrate,
       audioCodec: 'aac',
@@ -421,12 +317,6 @@ export default function PresetManager({
       } : undefined,
       overlay: draft.overlayEnabled ? {
         enabled: true,
-        assetPath: overlayItem?.source === 'local' ? overlayItem.path : undefined,
-        assetRef: overlayItem ? { key: overlayItem.key, source: overlayItem.source, mediaSiloId: overlayItem.mediaSiloId } : undefined,
-        duration: combineDurationPartsToSeconds(
-          draft.overlayDurationSeconds,
-          draft.overlayDurationFrames
-        ),
       } : undefined,
     };
 
@@ -451,6 +341,14 @@ export default function PresetManager({
           <select value={getResValue(draft.width, draft.height)} onChange={(e) => applyRes(e.target.value)}>
             {RESOLUTION_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label} ({o.width}×{o.height})</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>FPS</label>
+          <select value={draft.fps} onChange={(e) => set('fps', e.target.value)}>
+            {FPS_OPTIONS.map((fps) => (
+              <option key={fps} value={String(fps)}>{fps}</option>
             ))}
           </select>
         </div>
@@ -513,40 +411,9 @@ export default function PresetManager({
             Enable Overlay
           </label>
           {draft.overlayEnabled && (
-            <>
-              <div className="duration-grid">
-                <div className="duration-field">
-                  <label>Seconds</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={draft.overlayDurationSeconds}
-                    onChange={(e) => set('overlayDurationSeconds', e.target.value)}
-                  />
-                </div>
-                <div className="duration-field">
-                  <label>Frames</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={draft.overlayDurationFrames}
-                    onChange={(e) => set('overlayDurationFrames', e.target.value)}
-                  />
-                </div>
-              </div>
-              {overlayLib.length === 0 ? (
-                <p className="help-text">No overlay assets in library. Add some in Manage Assets.</p>
-              ) : (
-                <select value={draft.overlayLibraryId} onChange={(e) => set('overlayLibraryId', e.target.value)}>
-                  <option value="">— Select overlay asset —</option>
-                  {overlayLib.map((asset) => (
-                    <option key={asset.id} value={asset.id}>{asset.name}</option>
-                  ))}
-                </select>
-              )}
-            </>
+            <p className="help-text">
+              Overlay asset and duration are configured at export time.
+            </p>
           )}
         </div>
       </div>
@@ -570,7 +437,8 @@ export default function PresetManager({
 
       {showForm && !editingId && renderPresetForm('New Preset')}
 
-      <table className="pm-table">
+      <div className="pm-table-wrapper">
+        <table className="pm-table">
         <thead>
           <tr>
             <th>Preset Name</th>
@@ -597,12 +465,12 @@ export default function PresetManager({
                 <td><strong>{p.name}</strong><div className="pm-id">{p.id}</div></td>
                 <td>{getSlateDisplayName(p.introSlate, prependLib)}</td>
                 <td>{getSlateDisplayName(p.outroSlate, appendLib)}</td>
-                <td>{getOverlayDisplayName(p.overlay)}</td>
+                <td>{p.overlay?.enabled ? 'Enabled' : 'Disabled'}</td>
                 <td>{formatAspectLabel(p.width, p.height)}</td>
                 <td>{p.width}×{p.height}</td>
-                <td>{formatVideoBitrateMbps(p.bitrate)} Mbps</td>
+                <td>{p.maxFileSizeMB && p.maxFileSizeMB > 0 ? 'Auto' : `${formatVideoBitrateMbps(p.bitrate)} Mbps`}</td>
                 <td>{p.maxFileSizeMB && p.maxFileSizeMB > 0 ? `${p.maxFileSizeMB} MB` : 'No limit'}</td>
-                <td>59.94</td>
+                <td>{normalizeFps(p.fps)}</td>
                 <td>{p.videoCodec.toUpperCase()} / {p.container.toUpperCase()}</td>
                 <td>{p.audioCodec.toUpperCase()} @ {p.audioBitrate || 320} kbps</td>
                 <td className="pm-actions-cell">
@@ -624,6 +492,7 @@ export default function PresetManager({
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }

@@ -37,8 +37,17 @@ const RESOLUTION_OPTIONS = [
   { value: '1080x1350', aspect: '4:5', width: 1080, height: 1350 },
 ] as const;
 
+const FPS_OPTIONS = [60, 59.94, 30, 29.97] as const;
+
 // Must match ffmpeg output frame rate (fps=60000/1001)
 const OUTPUT_FPS = 59.94;
+
+function normalizeFps(value: number | undefined): OutputPreset['fps'] {
+  if (value === 60 || value === 59.94 || value === 30 || value === 29.97) {
+    return value;
+  }
+  return 59.94;
+}
 
 function getDefaultOutputDir(filePath: string): string {
   const lastSeparatorIndex = Math.max(
@@ -67,6 +76,14 @@ function formatAspectRatioLabel(width: number, height: number): string {
   );
 
   return matchingPreset?.label || ratio.toFixed(3);
+}
+
+function hasMatchingAspectRatio(sourceAspectRatio: number, width: number, height: number): boolean {
+  if (!sourceAspectRatio || !Number.isFinite(sourceAspectRatio) || width <= 0 || height <= 0) {
+    return true;
+  }
+
+  return Math.abs(sourceAspectRatio - (width / height)) < 0.01;
 }
 
 function formatVideoBitrateMbps(kbps: number): string {
@@ -135,6 +152,7 @@ interface PresetDraft {
   height: string;
   scalingMode: OutputPreset['scalingMode'];
   bitrate: string;
+  fps: string;
   videoCodec: OutputPreset['videoCodec'];
   audioBitrate: string;
   audioCodec: OutputPreset['audioCodec'];
@@ -144,9 +162,6 @@ interface PresetDraft {
   outroEnabled: boolean;
   outroLibraryId: string;
   overlayEnabled: boolean;
-  overlayLibraryId: string;
-  overlayDurationSeconds: string;
-  overlayDurationFrames: string;
 }
 
 const INITIAL_DRAFT: PresetDraft = {
@@ -156,6 +171,7 @@ const INITIAL_DRAFT: PresetDraft = {
   height: '',
   scalingMode: 'scale',
   bitrate: '50',
+  fps: '59.94',
   videoCodec: 'h264',
   audioBitrate: '320',
   audioCodec: 'aac',
@@ -165,9 +181,6 @@ const INITIAL_DRAFT: PresetDraft = {
   outroEnabled: false,
   outroLibraryId: '',
   overlayEnabled: false,
-  overlayLibraryId: '',
-  overlayDurationSeconds: '4',
-  overlayDurationFrames: '0',
 };
 
 export default function PresetSelector({
@@ -190,12 +203,15 @@ export default function PresetSelector({
   const [prependLibrary, setPrependLibrary] = useState<SlateAssetOption[]>([]);
   const [appendLibrary, setAppendLibrary] = useState<SlateAssetOption[]>([]);
   const [overlayLibrary, setOverlayLibrary] = useState<OverlayAssetOption[]>([]);
-  const [batchOverlayOverrideEnabled, setBatchOverlayOverrideEnabled] = useState(false);
   const [batchOverlayOverrideSecondsPart, setBatchOverlayOverrideSecondsPart] = useState('4');
   const [batchOverlayOverrideFramesPart, setBatchOverlayOverrideFramesPart] = useState('0');
   const [batchOverlayAssetLibraryId, setBatchOverlayAssetLibraryId] = useState('');
+  const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
+  const [pinnedDetailsPresetIds, setPinnedDetailsPresetIds] = useState<string[]>([]);
+  const [showPreflightDetails, setShowPreflightDetails] = useState(false);
   const hasMaxFileSize = Number(draft.maxFileSizeMB || 0) > 0;
   const sortedPresets = presets.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const selectedPresets = sortedPresets.filter((preset) => selectedPresetIds.includes(preset.id));
   const allPresetsSelected = sortedPresets.length > 0
     && sortedPresets.every((preset) => selectedPresetIds.includes(preset.id));
   const somePresetsSelected = sortedPresets.some((preset) => selectedPresetIds.includes(preset.id));
@@ -306,21 +322,18 @@ export default function PresetSelector({
       }
     }
 
-    let overlayDurationOverrideSeconds: number | undefined;
-    if (batchOverlayOverrideEnabled) {
-      overlayDurationOverrideSeconds = combineDurationPartsToSeconds(
-        batchOverlayOverrideSecondsPart,
-        batchOverlayOverrideFramesPart
-      );
-    }
+    const overlayDurationOverrideSeconds = combineDurationPartsToSeconds(
+      batchOverlayOverrideSecondsPart,
+      batchOverlayOverrideFramesPart
+    );
 
     onCreatePlan(
       outputDir,
       filenamePattern,
       constraints,
       true,
-      overlayDurationOverrideSeconds,
-      batchOverlayOverrideEnabled && batchOverlayAssetLibraryId ? batchOverlayAssetLibraryId : undefined
+      overlayDurationOverrideSeconds > 0 ? overlayDurationOverrideSeconds : undefined,
+      batchOverlayAssetLibraryId || undefined
     );
   };
 
@@ -390,6 +403,7 @@ export default function PresetSelector({
     const width = Number(draft.width);
     const height = Number(draft.height);
     const bitrate = parseVideoBitrateMbps(draft.bitrate);
+    const fps = normalizeFps(Number(draft.fps));
     const audioBitrate = Number(draft.audioBitrate);
     const crf = draft.crf ? Number(draft.crf) : undefined;
 
@@ -415,8 +429,6 @@ export default function PresetSelector({
 
     const introItem = prependLibrary.find((a) => a.id === draft.introLibraryId);
     const outroItem = appendLibrary.find((a) => a.id === draft.outroLibraryId);
-    const overlayItem = overlayLibrary.find((a) => a.id === draft.overlayLibraryId);
-
     const preset: OutputPreset = {
       id: generatedPresetId,
       name: draft.name.trim(),
@@ -424,6 +436,7 @@ export default function PresetSelector({
       height,
       scalingMode: 'scale',
       bitrate,
+      fps,
       videoCodec: draft.videoCodec,
       crf,
       audioBitrate,
@@ -447,12 +460,6 @@ export default function PresetSelector({
       overlay: draft.overlayEnabled
         ? {
             enabled: true,
-            assetPath: overlayItem?.source === 'local' ? overlayItem.path : undefined,
-            assetRef: overlayItem ? { key: overlayItem.key, source: overlayItem.source, mediaSiloId: overlayItem.mediaSiloId } : undefined,
-            duration: combineDurationPartsToSeconds(
-              draft.overlayDurationSeconds,
-              draft.overlayDurationFrames
-            ),
           }
         : undefined,
     };
@@ -475,7 +482,6 @@ export default function PresetSelector({
 
     setEditingPresetId(preset.id);
     setShowBuilder(true);
-    const overlayDurationParts = splitDurationToParts(preset.overlay?.duration || 4);
     setDraft({
       id: preset.id,
       name: preset.name,
@@ -483,6 +489,7 @@ export default function PresetSelector({
       height: String(preset.height),
       scalingMode: 'scale',
       bitrate: formatVideoBitrateMbps(preset.bitrate),
+      fps: String(normalizeFps(preset.fps)),
       videoCodec: preset.videoCodec,
       audioBitrate: String(preset.audioBitrate || 320),
       audioCodec: preset.audioCodec,
@@ -495,12 +502,6 @@ export default function PresetSelector({
       outroEnabled: !!preset.outroSlate?.enabled,
       outroLibraryId: findSlateId(appendLibrary, preset.outroSlate?.assetRef?.key, preset.outroSlate?.assetPath),
       overlayEnabled: !!preset.overlay?.enabled,
-      overlayLibraryId:
-        overlayLibrary.find((a) => preset.overlay?.assetRef?.key && a.key === preset.overlay.assetRef.key)?.id ||
-        overlayLibrary.find((a) => preset.overlay?.assetPath && a.path === preset.overlay.assetPath)?.id ||
-        '',
-      overlayDurationSeconds: overlayDurationParts.seconds,
-      overlayDurationFrames: overlayDurationParts.frames,
     });
   };
 
@@ -636,42 +637,7 @@ export default function PresetSelector({
   };
 
   const getOverlayDisplay = (preset: OutputPreset): string => {
-    if (!preset.overlay?.enabled) {
-      return 'None';
-    }
-
-    const duration =
-      preset.overlay.duration && preset.overlay.duration > 0
-        ? formatDurationWithFrames(preset.overlay.duration)
-        : '';
-
-    if (!preset.overlay.assetPath && !preset.overlay.assetRef?.key) {
-      return 'Not selected';
-    }
-
-    // Look up friendly name from overlay library by key, then by path
-    if (preset.overlay.assetRef?.key) {
-      const byKey = overlayLibrary.find((a) => a.key === preset.overlay?.assetRef?.key);
-      if (byKey) return `${byKey.name}${duration}`;
-
-      const fuzzyByKey = overlayLibrary.find(
-        (a) => isTokenSubsetMatch(preset.overlay?.assetRef?.key, a.key) || isTokenSubsetMatch(preset.overlay?.assetRef?.key, a.name)
-      );
-      if (fuzzyByKey) return `${fuzzyByKey.name}${duration}`;
-    }
-    if (preset.overlay.assetPath) {
-      const byPath = overlayLibrary.find((a) => a.path === preset.overlay?.assetPath);
-      if (byPath) return `${byPath.name}${duration}`;
-
-      const fuzzyByPath = overlayLibrary.find(
-        (a) => isTokenSubsetMatch(getBasename(preset.overlay?.assetPath), a.key) || isTokenSubsetMatch(getBasename(preset.overlay?.assetPath), a.name)
-      );
-      if (fuzzyByPath) return `${fuzzyByPath.name}${duration}`;
-
-      return `${getBasename(preset.overlay.assetPath)}${duration}`;
-    }
-
-    return 'Not selected';
+    return preset.overlay?.enabled ? 'Enabled' : 'Disabled';
   };
 
   const isOverlayAssetMissing = (preset: OutputPreset): boolean => {
@@ -680,6 +646,111 @@ export default function PresetSelector({
     }
 
     return !preset.overlay.assetPath && !preset.overlay.assetRef?.key;
+  };
+
+  const preflightIssues: Array<{ presetId?: string; message: string }> = (() => {
+    const warnings: Array<{ presetId?: string; message: string }> = [];
+
+    for (const preset of selectedPresets) {
+      if (
+        preset.scalingMode === 'scale'
+        && !hasMatchingAspectRatio(video.aspectRatio, preset.width, preset.height)
+      ) {
+        warnings.push({
+          presetId: preset.id,
+          message: `${preset.name}: source aspect ratio ${formatAspectRatioLabel(video.width, video.height)} does not match output ${formatAspectRatioLabel(preset.width, preset.height)}.`,
+        });
+      }
+
+      if (isSlateMissing(preset.introSlate)) {
+        warnings.push({
+          presetId: preset.id,
+          message: `${preset.name}: prepend is enabled but no prepend asset is selected.`,
+        });
+      }
+
+      if (isSlateMissing(preset.outroSlate)) {
+        warnings.push({
+          presetId: preset.id,
+          message: `${preset.name}: append is enabled but no append asset is selected.`,
+        });
+      }
+    }
+
+    const overlayEnabledCount = selectedPresets.filter((preset) => preset.overlay?.enabled).length;
+    if (overlayEnabledCount > 0 && !batchOverlayAssetLibraryId) {
+      warnings.push({
+        message: `Overlay is enabled on ${overlayEnabledCount} selected preset(s), but no export-time overlay asset is selected.`,
+      });
+    }
+
+    if (batchOverlayAssetLibraryId && !overlayLibrary.some((item) => item.id === batchOverlayAssetLibraryId)) {
+      warnings.push({
+        message: 'Selected export-time overlay asset is not available in the current overlay library.',
+      });
+    }
+
+    return warnings;
+  })();
+
+  const preflightAffectedPresetCount = new Set(
+    preflightIssues
+      .map((issue) => issue.presetId)
+      .filter((presetId): presetId is string => Boolean(presetId))
+  ).size;
+
+  const renderPresetSpecs = (preset: OutputPreset) => {
+    const targetBitrate = preset.maxFileSizeMB && preset.maxFileSizeMB > 0
+      ? 'Auto'
+      : `${formatVideoBitrateMbps(preset.bitrate)} Mbps`;
+    const maxFileSize = preset.maxFileSizeMB && preset.maxFileSizeMB > 0
+      ? `${preset.maxFileSizeMB} MB`
+      : 'No limit';
+
+    return (
+      <div className="preset-specs-grid">
+        <div className={`preset-spec-item ${isSlateMissing(preset.introSlate) ? 'overlay-missing' : ''}`}>
+          <span>Prepend</span>
+          <strong>{getIntroDisplay(preset.introSlate)}</strong>
+        </div>
+        <div className={`preset-spec-item ${isSlateMissing(preset.outroSlate) ? 'overlay-missing' : ''}`}>
+          <span>Append</span>
+          <strong>{getOutroDisplay(preset.outroSlate)}</strong>
+        </div>
+        <div className={`preset-spec-item ${isOverlayAssetMissing(preset) ? 'overlay-missing' : ''}`}>
+          <span>ESRB Overlay</span>
+          <strong>{getOverlayDisplay(preset)}</strong>
+        </div>
+        <div className="preset-spec-item">
+          <span>Aspect Ratio</span>
+          <strong>{formatAspectRatioLabel(preset.width, preset.height)}</strong>
+        </div>
+        <div className="preset-spec-item">
+          <span>Resolution</span>
+          <strong>{preset.width}x{preset.height}</strong>
+        </div>
+        <div className="preset-spec-item">
+          <span>Target Bitrate</span>
+          <strong>{targetBitrate}</strong>
+        </div>
+        <div className="preset-spec-item">
+          <span>Max Filesize</span>
+          <strong>{maxFileSize}</strong>
+        </div>
+        <div className="preset-spec-item">
+          <span>FPS</span>
+          <strong>{normalizeFps(preset.fps)}</strong>
+        </div>
+        <div className="preset-spec-item">
+          <span>Codec/Format</span>
+          <strong>{preset.videoCodec.toUpperCase()} / {preset.container.toUpperCase()}</strong>
+        </div>
+        <div className="preset-spec-item">
+          <span>Audio Specs</span>
+          <strong>{preset.audioCodec.toUpperCase()} @ {preset.audioBitrate || 320} kbps</strong>
+        </div>
+      </div>
+    );
   };
 
   const renderPresetBuilder = (mode: 'new' | 'edit') => (
@@ -706,6 +777,20 @@ export default function PresetSelector({
             {RESOLUTION_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {formatResolutionOption(option)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label>FPS</label>
+          <select
+            value={draft.fps}
+            onChange={(e) => updateDraft('fps', e.target.value)}
+          >
+            {FPS_OPTIONS.map((fps) => (
+              <option key={fps} value={String(fps)}>
+                {fps}
               </option>
             ))}
           </select>
@@ -809,43 +894,9 @@ export default function PresetSelector({
             Enable Overlay
           </label>
           {draft.overlayEnabled && (
-            <>
-              <div className="duration-grid">
-                <div className="duration-field">
-                  <label>Seconds</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={draft.overlayDurationSeconds}
-                    onChange={(e) => updateDraft('overlayDurationSeconds', e.target.value)}
-                  />
-                </div>
-                <div className="duration-field">
-                  <label>Frames</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={draft.overlayDurationFrames}
-                    onChange={(e) => updateDraft('overlayDurationFrames', e.target.value)}
-                  />
-                </div>
-              </div>
-              {overlayLibrary.length === 0 ? (
-                <p className="help-text">No overlay assets in library. Add some in Manage Assets.</p>
-              ) : (
-                <select
-                  value={draft.overlayLibraryId}
-                  onChange={(e) => updateDraft('overlayLibraryId', e.target.value)}
-                >
-                  <option value="">— Select overlay asset —</option>
-                  {overlayLibrary.map((asset) => (
-                    <option key={asset.id} value={asset.id}>{asset.name}</option>
-                  ))}
-                </select>
-              )}
-            </>
+            <p className="help-text">
+              Overlay asset and duration are configured at export time.
+            </p>
           )}
         </div>
       </div>
@@ -899,7 +950,7 @@ export default function PresetSelector({
           <table className="preset-table">
             <thead>
               <tr>
-                <th className="sticky-column sticky-column-select">
+                <th className="preset-col-select">
                   <div className="preset-cell preset-cell-select select-all-header">
                     <span>Select</span>
                     <input
@@ -915,20 +966,8 @@ export default function PresetSelector({
                     />
                   </div>
                 </th>
-                <th className="sticky-column sticky-column-name">
-                  <div className="preset-cell">Preset Name</div>
-                </th>
-                <th><div className="preset-cell">Prepend</div></th>
-                <th><div className="preset-cell">Append</div></th>
-                <th><div className="preset-cell">ESRB Overlay</div></th>
-                <th><div className="preset-cell">Aspect Ratio</div></th>
-                <th><div className="preset-cell">Resolution</div></th>
-                <th><div className="preset-cell">Target Bitrate</div></th>
-                <th><div className="preset-cell">Max Filesize</div></th>
-                <th><div className="preset-cell">FPS</div></th>
-                <th><div className="preset-cell">Codec/Format</div></th>
-                <th><div className="preset-cell">Audio Specs</div></th>
-                <th className="sticky-column sticky-column-actions">
+                <th className="preset-col-name"><div className="preset-cell">Preset Name</div></th>
+                <th className="preset-col-actions">
                   <div className="preset-cell preset-cell-actions">Actions</div>
                 </th>
               </tr>
@@ -936,10 +975,16 @@ export default function PresetSelector({
             <tbody>
               {sortedPresets.map((preset) => {
                 const isSelected = selectedPresetIds.includes(preset.id);
+                const isPinned = pinnedDetailsPresetIds.includes(preset.id);
+                const showSpecs = isPinned || hoveredPresetId === preset.id;
                 return (
                   <React.Fragment key={preset.id}>
-                    <tr className={isSelected ? 'row-selected' : ''}>
-                      <td className="sticky-column sticky-column-select">
+                    <tr
+                      className={isSelected ? 'row-selected' : ''}
+                      onMouseEnter={() => setHoveredPresetId(preset.id)}
+                      onMouseLeave={() => setHoveredPresetId((current) => (current === preset.id ? null : current))}
+                    >
+                      <td className="preset-col-select">
                         <div className="preset-cell preset-cell-select">
                           <input
                             type="checkbox"
@@ -948,38 +993,25 @@ export default function PresetSelector({
                           />
                         </div>
                       </td>
-                      <td className="sticky-column sticky-column-name">
-                        <div className="preset-cell">{preset.name}</div>
+                      <td className="preset-col-name">
+                        <button
+                          type="button"
+                          className="preset-name-button"
+                          onClick={() => {
+                            setPinnedDetailsPresetIds((current) =>
+                              current.includes(preset.id)
+                                ? current.filter((id) => id !== preset.id)
+                                : [...current, preset.id]
+                            );
+                          }}
+                        >
+                          <span className="preset-name-main">{preset.name}</span>
+                          <span className="preset-name-hint">
+                            {(isPinned ? 'Pinned (click to collapse)' : 'Hover or click to pin exact specs')}
+                          </span>
+                        </button>
                       </td>
-                      <td className={isSlateMissing(preset.introSlate) ? 'overlay-missing' : ''}>
-                        <div className="preset-cell">{getIntroDisplay(preset.introSlate)}</div>
-                      </td>
-                      <td className={isSlateMissing(preset.outroSlate) ? 'overlay-missing' : ''}>
-                        <div className="preset-cell">{getOutroDisplay(preset.outroSlate)}</div>
-                      </td>
-                      <td className={isOverlayAssetMissing(preset) ? 'overlay-missing' : ''}>
-                        <div className="preset-cell">{getOverlayDisplay(preset)}</div>
-                      </td>
-                      <td><div className="preset-cell">{formatAspectRatioLabel(preset.width, preset.height)}</div></td>
-                      <td><div className="preset-cell">{preset.width}x{preset.height}</div></td>
-                      <td>
-                        <div className="preset-cell">
-                          {preset.maxFileSizeMB && preset.maxFileSizeMB > 0
-                            ? 'Auto'
-                            : `${formatVideoBitrateMbps(preset.bitrate)} Mbps`}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="preset-cell">
-                          {preset.maxFileSizeMB && preset.maxFileSizeMB > 0
-                            ? `${preset.maxFileSizeMB} MB`
-                            : 'No limit'}
-                        </div>
-                      </td>
-                      <td><div className="preset-cell">59.94</div></td>
-                      <td><div className="preset-cell">{preset.videoCodec.toUpperCase()} / {preset.container.toUpperCase()}</div></td>
-                      <td><div className="preset-cell">{preset.audioCodec.toUpperCase()} @ {preset.audioBitrate || 320} kbps</div></td>
-                      <td className="sticky-column sticky-column-actions preset-row-actions-cell">
+                      <td className="preset-col-actions preset-row-actions-cell">
                         <div className="preset-cell preset-cell-actions">
                           <div className="preset-row-actions">
                             <button
@@ -998,9 +1030,18 @@ export default function PresetSelector({
                         </div>
                       </td>
                     </tr>
+                    {showSpecs && (
+                      <tr className="preset-specs-row">
+                        <td colSpan={3}>
+                          <div className="preset-specs-card">
+                            {renderPresetSpecs(preset)}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     {showBuilder && editingPresetId === preset.id && (
                       <tr className="preset-inline-editor-row">
-                        <td colSpan={13}>{renderPresetBuilder('edit')}</td>
+                        <td colSpan={3}>{renderPresetBuilder('edit')}</td>
                       </tr>
                     )}
                   </React.Fragment>
@@ -1035,58 +1076,70 @@ export default function PresetSelector({
           </div>
 
           <div className="form-group">
-            <label className="toggle-label">
-              <input
-                type="checkbox"
-                checked={batchOverlayOverrideEnabled}
-                onChange={(e) => setBatchOverlayOverrideEnabled(e.target.checked)}
-              />
-              <span className="batch-overlay-override-label">Override ESRB Overlay For This Batch</span>
-            </label>
-            {batchOverlayOverrideEnabled && (
-              <>
-                <div className="form-group" style={{ marginTop: '0.5rem' }}>
-                  <label>Overlay Asset</label>
-                  <select
-                    value={batchOverlayAssetLibraryId}
-                    onChange={(e) => setBatchOverlayAssetLibraryId(e.target.value)}
-                  >
-                    <option value="">— Keep preset default —</option>
-                    {overlayLibrary.map((item) => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="duration-grid">
-                  <div className="duration-field">
-                    <label>Overlay Duration (Seconds)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={batchOverlayOverrideSecondsPart}
-                      onChange={(e) => setBatchOverlayOverrideSecondsPart(e.target.value)}
-                    />
-                  </div>
-                  <div className="duration-field">
-                    <label>Frames</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={batchOverlayOverrideFramesPart}
-                      onChange={(e) => setBatchOverlayOverrideFramesPart(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
+            <label>ESRB Overlay (applies to presets with Enable Overlay checked)</label>
+            <div className="form-group" style={{ marginTop: '0.5rem' }}>
+              <label>Overlay Asset</label>
+              <select
+                value={batchOverlayAssetLibraryId}
+                onChange={(e) => setBatchOverlayAssetLibraryId(e.target.value)}
+              >
+                <option value="">— Select overlay asset —</option>
+                {overlayLibrary.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="duration-grid">
+              <div className="duration-field">
+                <label>Overlay Duration (Seconds)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={batchOverlayOverrideSecondsPart}
+                  onChange={(e) => setBatchOverlayOverrideSecondsPart(e.target.value)}
+                />
+              </div>
+              <div className="duration-field">
+                <label>Frames</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={batchOverlayOverrideFramesPart}
+                  onChange={(e) => setBatchOverlayOverrideFramesPart(e.target.value)}
+                />
+              </div>
+            </div>
             <span className="help-text">
-              Applies only to this export run and does not save into presets.
+              Applies only to this export run for presets with Enable Overlay turned on, and does not save into presets.
             </span>
           </div>
 
         </div>
+
+        {preflightIssues.length > 0 && (
+          <div className="preflight-warning-panel" role="alert">
+            <h3>Warning: potential asset mismatch</h3>
+            <p>
+              Export can still run, but {preflightAffectedPresetCount > 0 ? `${preflightAffectedPresetCount} selected preset(s)` : 'selected settings'} may fail or produce unexpected results.
+            </p>
+            <button
+              type="button"
+              className="preflight-toggle"
+              onClick={() => setShowPreflightDetails((prev) => !prev)}
+            >
+              {showPreflightDetails ? 'Hide details' : `Show details (${preflightIssues.length})`}
+            </button>
+            {showPreflightDetails && (
+              <ul>
+                {preflightIssues.map((issue) => (
+                  <li key={issue.message}>{issue.message}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div className="actions">
           <button className="btn btn-secondary" onClick={handleStartCreatePreset}>

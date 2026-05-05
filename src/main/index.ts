@@ -856,6 +856,14 @@ ipcMain.handle('get-app-update-status', async () => {
   }
 });
 
+ipcMain.handle('get-app-version', async () => {
+  try {
+    return { success: true, data: getAppUpdateStatus().currentVersion };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+});
+
 ipcMain.handle('check-app-updates', async () => {
   try {
     const status = await checkForAppUpdates();

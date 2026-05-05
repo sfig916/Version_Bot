@@ -75,7 +75,7 @@
 
 .preset-table {
   width: 100%;
-  min-width: 1400px;
+  min-width: 0;
   border-collapse: separate;
   border-spacing: 0;
 }
@@ -119,55 +119,19 @@
   overflow: visible;
 }
 
-.sticky-column {
-  position: sticky;
-  z-index: 15;
-}
-
-.preset-table th.sticky-column {
-  z-index: 25;
-}
-
-.sticky-column::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: inherit;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.sticky-column > .preset-cell {
-  position: relative;
-  z-index: 1;
-}
-
-.sticky-column-select {
-  left: 0;
+.preset-col-select {
   width: 65px;
   min-width: 65px;
   max-width: 65px;
-  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.08);
 }
 
-.sticky-column-name {
-  left: 65px;
-  width: 180px;
-  min-width: 180px;
-  max-width: 180px;
-  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.08);
+.preset-col-name {
+  width: auto;
 }
 
-.sticky-column-actions {
-  right: 0;
-  width: 140px;
-  min-width: 140px;
-  max-width: 140px;
-  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.08);
-}
-
-.preset-table tbody .sticky-column {
-  background-color: var(--card-bg);
+.preset-col-actions {
+  width: 170px;
+  min-width: 170px;
 }
 
 .preset-table tbody tr:hover {
@@ -178,14 +142,63 @@
   background-color: #f8fbff;
 }
 
-.preset-table tbody tr:hover .sticky-column {
-  background-color: #f8fbff;
+.preset-table .row-selected,
+.preset-table .row-selected td {
+  background-color: rgba(37, 99, 235, 0.08);
 }
 
-.preset-table .row-selected,
-.preset-table .row-selected td,
-.preset-table .row-selected .sticky-column {
-  background-color: rgba(37, 99, 235, 0.08);
+.preset-name-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.preset-name-main {
+  display: block;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.preset-name-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.preset-specs-row td {
+  background-color: #f6f9ff;
+  padding: 0.5rem 0.75rem 0.9rem;
+}
+
+.preset-specs-card {
+  border: 1px solid #d9e2f3;
+  border-radius: 0.5rem;
+  background-color: #ffffff;
+  padding: 0.75rem;
+}
+
+.preset-specs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.65rem 0.9rem;
+}
+
+.preset-spec-item span {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.2rem;
+}
+
+.preset-spec-item strong {
+  display: block;
+  font-size: 0.86rem;
+  color: var(--text-primary);
+  line-height: 1.25;
 }
 
 .select-all-header {
@@ -258,6 +271,17 @@
   color: #1e3a8a;
 }
 
+.builder-grid .form-group label {
+  min-height: 2.2rem;
+  display: flex;
+  align-items: flex-end;
+}
+
+.builder-grid .form-group input,
+.builder-grid .form-group select {
+  min-height: 2.65rem;
+}
+
 .preset-builder {
   background-color: var(--card-bg);
   border: 1px solid var(--border-color);
@@ -274,8 +298,20 @@
 
 .builder-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
   gap: 1rem;
+}
+
+@media (max-width: 1200px) {
+  .builder-grid {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .builder-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .asset-sections {
@@ -368,6 +404,51 @@
   display: flex;
   gap: 1rem;
   justify-content: center;
+}
+
+.preflight-warning-panel {
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  color: #78350f;
+  border-radius: 0.5rem;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.preflight-warning-panel h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+}
+
+.preflight-warning-panel p {
+  margin: 0 0 0.45rem;
+  font-size: 0.86rem;
+}
+
+.preflight-toggle {
+  border: 1px solid #f59e0b;
+  background: #ffffff;
+  color: #92400e;
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+
+.preflight-toggle:hover {
+  background: #fffbeb;
+}
+
+.preflight-warning-panel ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.preflight-warning-panel li {
+  font-size: 0.84rem;
+  margin-bottom: 0.25rem;
 }
 
 .actions button {

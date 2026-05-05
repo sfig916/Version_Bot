@@ -21,14 +21,19 @@
   color: var(--text-primary);
 }
 
+/* Table wrapper for horizontal scroll */
+.pm-table-wrapper {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: var(--card-bg);
+}
+
 /* Table */
 .pm-table {
   width: 100%;
   border-collapse: collapse;
   background: var(--card-bg);
-  border-radius: 0.5rem;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .pm-table th,
@@ -48,6 +53,37 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Sticky first column (Preset Name) */
+.pm-table th:first-child,
+.pm-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 9;
+  background-color: var(--card-bg);
+}
+
+.pm-table th:first-child {
+  background-color: var(--bg-secondary);
+  z-index: 11;
+}
+
+/* Sticky last column (Actions) */
+.pm-table th:last-child,
+.pm-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 9;
+  background-color: var(--card-bg);
+}
+
+.pm-table th:last-child {
+  background-color: var(--bg-secondary);
+  z-index: 11;
 }
 
 .pm-table tbody tr:last-child td {
@@ -55,6 +91,11 @@
 }
 
 .pm-table tbody tr:hover {
+  background-color: rgba(var(--accent-rgb, 99, 102, 241), 0.04);
+}
+
+.pm-table tbody tr:hover td:first-child,
+.pm-table tbody tr:hover td:last-child {
   background-color: rgba(var(--accent-rgb, 99, 102, 241), 0.04);
 }
 
@@ -110,9 +151,21 @@
 
 .pm-form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
   gap: 0.75rem;
   margin-bottom: 1.25rem;
+}
+
+@media (max-width: 1200px) {
+  .pm-form-grid {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .pm-form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .form-group {
@@ -129,6 +182,12 @@
   letter-spacing: 0.05em;
 }
 
+.pm-form-grid .form-group label {
+  min-height: 2.2rem;
+  display: flex;
+  align-items: flex-end;
+}
+
 .form-group input,
 .form-group select {
   padding: 0.4rem 0.6rem;
@@ -137,6 +196,7 @@
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 0.875rem;
+  min-height: 2.65rem;
 }
 
 .pm-asset-sections {

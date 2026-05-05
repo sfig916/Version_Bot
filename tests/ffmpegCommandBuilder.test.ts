@@ -23,6 +23,7 @@ const baseJob: RenderJob = {
     height: 720,
     scalingMode: 'crop',
     bitrate: 2500,
+    fps: 59.94,
     videoCodec: 'h264',
     audioBitrate: 128,
     audioCodec: 'aac',
@@ -51,11 +52,37 @@ describe('FFmpeg Command Builder', () => {
     expect(command.args[codecArgIndex + 1]).toBe('aac');
   });
 
-  it('should force output fps to 59.94', () => {
+  it('should use preset fps in output', () => {
     const command = buildFFmpegCommand(baseJob);
     const fpsArgIndex = command.args.indexOf('-r');
     expect(fpsArgIndex).toBeGreaterThan(-1);
     expect(command.args[fpsArgIndex + 1]).toBe('60000/1001');
+  });
+
+  it('should use exact fps values like 30 and 60', () => {
+    const command30 = buildFFmpegCommand({
+      ...baseJob,
+      preset: {
+        ...baseJob.preset,
+        fps: 30,
+      },
+    });
+
+    const fpsArgIndex30 = command30.args.indexOf('-r');
+    expect(fpsArgIndex30).toBeGreaterThan(-1);
+    expect(command30.args[fpsArgIndex30 + 1]).toBe('30');
+
+    const command60 = buildFFmpegCommand({
+      ...baseJob,
+      preset: {
+        ...baseJob.preset,
+        fps: 60,
+      },
+    });
+
+    const fpsArgIndex60 = command60.args.indexOf('-r');
+    expect(fpsArgIndex60).toBeGreaterThan(-1);
+    expect(command60.args[fpsArgIndex60 + 1]).toBe('60');
   });
 
   it('should map mp3 audio codec to libmp3lame', () => {

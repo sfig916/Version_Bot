@@ -7,8 +7,6 @@ import {
   VideoMetadata,
   OutputPreset,
   RenderPlan,
-  MediaSiloAuthStatus,
-  MediaSiloSyncSummary,
 } from '../../core/models/types';
 import { hasMatchingAspectRatio } from '../../core/rendering/aspectRatio';
 import { AppError, parseError } from '../utils/errorHandler';
@@ -74,11 +72,6 @@ interface JobCompleteEvent {
   error?: string;
   durationMs: number;
 }
-
-type MediaSiloStatusView = MediaSiloAuthStatus;
-
-const DEFAULT_MEDIASILO_AUTH_URL = 'https://app.mediasilo.com/desktop-login/initiate';
-const DEFAULT_MEDIASILO_TENANT_LABEL = 'Activision';
 
 function calculatePlanProgress(plan: RenderPlan): number {
   if (plan.jobs.length === 0) {
@@ -147,13 +140,12 @@ export default function App() {
     isRendering: false,
     isLoading: false,
   });
-  const [mediaSiloStatus, setMediaSiloStatus] = useState<MediaSiloStatusView | null>(null);
-  const [isMediaSiloBusy, setIsMediaSiloBusy] = useState(false);
+  const [appVersion, setAppVersion] = useState('0.0.0');
 
   // Load presets on mount
   useEffect(() => {
     loadPresets();
-    refreshMediaSiloStatus();
+    loadAppVersion();
   }, []);
 
   useEffect(() => {
@@ -165,98 +157,14 @@ export default function App() {
     return () => window.removeEventListener('bundleUpdated', handleBundleUpdated);
   }, []);
 
-  const refreshMediaSiloStatus = async () => {
+  const loadAppVersion = async () => {
     try {
-      const result = await window.versionBotAPI.getMediaSiloStatus();
+      const result = await window.versionBotAPI.getAppVersion();
       if (result.success && result.data) {
-        setMediaSiloStatus(result.data);
+        setAppVersion(result.data);
       }
     } catch (error) {
-      console.warn('Failed to load MediaSilo status', error);
-    }
-  };
-
-  const handleConfigureAndLoginMediaSilo = async () => {
-    setIsMediaSiloBusy(true);
-    try {
-      const statusResult = await window.versionBotAPI.getMediaSiloStatus();
-      if (!statusResult.success || !statusResult.data) {
-        alert(statusResult.error || 'Unable to load MediaSilo status');
-        return;
-      }
-      const status = statusResult.data;
-
-      const configResult = await window.versionBotAPI.setMediaSiloConfig({
-        authUrl: DEFAULT_MEDIASILO_AUTH_URL,
-        tenantName: DEFAULT_MEDIASILO_TENANT_LABEL,
-        apiBaseUrl: status.apiBaseUrl,
-      });
-
-      if (!configResult.success) {
-        alert(configResult.error || 'Failed to save MediaSilo config');
-        return;
-      }
-
-      const loginResult = await window.versionBotAPI.startMediaSiloLogin();
-      if (!loginResult.success) {
-        alert(loginResult.error || 'Failed to open MediaSilo login');
-        return;
-      }
-
-      alert(
-        'MediaSilo login opened in your browser. Sign in with your Activision account to connect Version Bot to the shared Activision MediaSilo project. Once API access is enabled, this flow will automatically complete in-app and sync assets.'
-      );
-      await refreshMediaSiloStatus();
-    } catch (error) {
-      console.error('MediaSilo login flow failed', error);
-      alert(error instanceof Error ? error.message : 'MediaSilo login flow failed');
-    } finally {
-      setIsMediaSiloBusy(false);
-    }
-  };
-
-  const handleLogoutMediaSilo = async () => {
-    setIsMediaSiloBusy(true);
-    try {
-      const result = await window.versionBotAPI.logoutMediaSilo();
-      if (!result.success) {
-        alert(result.error || 'Failed to disconnect MediaSilo');
-        return;
-      }
-      await refreshMediaSiloStatus();
-    } catch (error) {
-      console.error('MediaSilo logout failed', error);
-      alert(error instanceof Error ? error.message : 'MediaSilo logout failed');
-    } finally {
-      setIsMediaSiloBusy(false);
-    }
-  };
-
-  const handleSyncMediaSilo = async () => {
-    setIsMediaSiloBusy(true);
-    try {
-      const result = await window.versionBotAPI.syncMediaSiloAssets();
-      if (!result.success || !result.data) {
-        alert(result.error || 'MediaSilo sync check failed');
-        return;
-      }
-
-      const summary: MediaSiloSyncSummary = result.data;
-      const missingPreview = summary.missingKeys.slice(0, 6).join(', ');
-      const missingLine = summary.missing > 0
-        ? `Missing keys: ${missingPreview}${summary.missingKeys.length > 6 ? ', ...' : ''}`
-        : 'All referenced keys are cached locally.';
-
-      alert(
-        `MediaSilo sync summary\n\nReferenced: ${summary.totalRefs}\nCached: ${summary.cached}\nMissing: ${summary.missing}\n\n${missingLine}`
-      );
-
-      await refreshMediaSiloStatus();
-    } catch (error) {
-      console.error('MediaSilo sync failed', error);
-      alert(error instanceof Error ? error.message : 'MediaSilo sync failed');
-    } finally {
-      setIsMediaSiloBusy(false);
+      console.warn('Failed to load app version', error);
     }
   };
 
@@ -629,54 +537,12 @@ export default function App() {
             <p>Video Versioning & Batch Export Tool</p>
           </div>
           <div className="header-right">
-            <div className="media-silo-panel">
-              <div className="media-silo-controls">
-                <span className={`media-silo-status ${mediaSiloStatus?.connected ? 'connected' : 'disconnected'}`}>
-                  MediaSilo: {mediaSiloStatus?.connected ? 'Connected to Activision' : 'Activision sign-in required'}
-                </span>
-                <button
-                  className="btn btn-nav"
-                  onClick={handleConfigureAndLoginMediaSilo}
-                  disabled={isMediaSiloBusy}
-                  title="Sign in with your Activision account for the shared MediaSilo project"
-                >
-                  🔐 Sign In
-                </button>
-                <button
-                  className="btn btn-nav"
-                  onClick={handleSyncMediaSilo}
-                  disabled={isMediaSiloBusy}
-                  title="Check MediaSilo asset cache coverage"
-                >
-                  🔄 Sync
-                </button>
-                {mediaSiloStatus?.connected && (
-                  <button
-                    className="btn btn-nav"
-                    onClick={handleLogoutMediaSilo}
-                    disabled={isMediaSiloBusy}
-                    title="Disconnect MediaSilo session"
-                  >
-                    Sign Out
-                  </button>
-                )}
-              </div>
-
-              {!mediaSiloStatus?.connected && mediaSiloStatus?.message && (
-                <div className="media-silo-help-row">
-                  <span className="media-silo-help-text">{mediaSiloStatus.message}</span>
-                </div>
-              )}
-
-              <div className="media-silo-help-row">
-                <button
-                  className="btn btn-nav"
-                  onClick={() => setState((prev) => ({ ...prev, currentView: 'updates' }))}
-                >
-                  Updates
-                </button>
-              </div>
-            </div>
+            <button
+              className="btn btn-nav"
+              onClick={() => setState((prev) => ({ ...prev, currentView: 'updates' }))}
+            >
+              App Updates
+            </button>
           </div>
         </div>
       </header>
@@ -757,7 +623,7 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        <p>Version Bot v0.1.0</p>
+        <p>Version Bot v{appVersion}</p>
       </footer>
     </div>
   );

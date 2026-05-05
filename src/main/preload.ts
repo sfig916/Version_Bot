@@ -182,6 +182,9 @@ const api = {
   getAppUpdateStatus: () =>
     ipcRenderer.invoke('get-app-update-status') as Promise<APIResult<unknown>>,
 
+  getAppVersion: () =>
+    ipcRenderer.invoke('get-app-version') as Promise<APIResult<string>>,
+
   checkAppUpdates: () =>
     ipcRenderer.invoke('check-app-updates') as Promise<APIResult<unknown>>,
 

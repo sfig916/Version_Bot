@@ -9,8 +9,7 @@ interface SlateAssetOption {
   id: string;
   name: string;
   key: string;
-  source: 'local' | 'mediasilo';
-  mediaSiloId?: string;
+  source: 'local';
   path?: string;
   duration: number;
 }
@@ -19,8 +18,7 @@ interface OverlayAssetOption {
   id: string;
   name: string;
   key: string;
-  source: 'local' | 'mediasilo';
-  mediaSiloId?: string;
+  source: 'local';
   path?: string;
 }
 
@@ -373,37 +371,7 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
     }
   };
 
-  const addMediaSiloAsset = async (type: 'prepend' | 'append') => {
-    try {
-      const name = await showPrompt('MediaSilo Asset Name', 'Enter the name of the MediaSilo asset:');
-      if (!name) return;
 
-      // Auto-generate key from name
-      const key = toKey(name);
-
-      const mediaSiloId = await showPrompt('MediaSilo Asset ID', 'Enter the MediaSilo asset ID (optional):', '');
-
-      const item: SlateAssetOption = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        name,
-        key,
-        source: 'mediasilo',
-        mediaSiloId: mediaSiloId || undefined,
-        duration: 3,
-      };
-
-      if (type === 'prepend') {
-        persistPrepend([...prependLib, item]);
-      } else {
-        persistAppend([...appendLib, item]);
-      }
-
-      alert(`✓ MediaSilo asset "${name}" added successfully!`);
-    } catch (error) {
-      console.error('[AssetLibraryManager] Error adding mediasilo asset:', error);
-      alert(`Error adding asset: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
 
   const addOverlayAsset = async () => {
     try {
@@ -431,58 +399,9 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
     }
   };
 
-  const addMediaSiloOverlay = async () => {
-    try {
-      const name = await showPrompt('Overlay Name', 'Enter the name of the MediaSilo overlay:', 'Overlay');
-      if (!name) return;
 
-      const key = toKey(name);
 
-      const mediaSiloId = await showPrompt('MediaSilo Asset ID', 'Enter the MediaSilo asset ID (optional):', '');
 
-      const item: OverlayAssetOption = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        name,
-        key,
-        source: 'mediasilo',
-        mediaSiloId: mediaSiloId || undefined,
-      };
-
-      persistOverlay([...overlayLib, item]);
-      alert(`✓ MediaSilo overlay "${name}" added successfully!`);
-    } catch (error) {
-      console.error('[AssetLibraryManager] Error adding mediasilo overlay:', error);
-      alert(`Error adding overlay: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
-
-  const linkMediaSiloAssetPath = async (
-    key: string,
-    mediaSiloId?: string,
-    kind: 'video' | 'image' | 'any' = 'any'
-  ) => {
-    try {
-      const selected = await window.versionBotAPI.selectAssetFile(kind);
-      if (!selected) {
-        return;
-      }
-
-      const result = await window.versionBotAPI.setMediaSiloCachedAssetPath(
-        key,
-        mediaSiloId || null,
-        selected
-      );
-      if (!result.success) {
-        alert(result.error || 'Failed to link MediaSilo asset path');
-        return;
-      }
-
-      alert(`Linked MediaSilo asset key "${key}" to local file:\n${selected}`);
-    } catch (error) {
-      console.error('[AssetLibraryManager] Error linking mediasilo path:', error);
-      alert(`Error linking MediaSilo path: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
 
   const deleteSlateAsset = (type: 'prepend' | 'append', id: string) => {
     if (!window.confirm('Delete this asset? This cannot be undone.')) return;
@@ -584,9 +503,6 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                 <button className="btn btn-small btn-secondary" onClick={() => addSlateAsset('prepend')}>
                   Add Local File
                 </button>
-                <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloAsset('prepend')}>
-                  Add MediaSilo
-                </button>
               </div>
             </div>
 
@@ -639,13 +555,10 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                             )}
                           </div>
                           <div className="alm-asset-meta">
-                            <span className={`badge ${asset.source === 'local' ? 'badge-local' : 'badge-mediasilo'}`}>
-                              {asset.source === 'local' ? 'Local' : 'MediaSilo'}
-                            </span>
+                            <span className="badge badge-local">Local</span>
                             <span className="meta-item">Key: <code>{asset.key}</code></span>
                             {asset.duration && <span className="meta-item">Duration: {asset.duration.toFixed(1)}s</span>}
                             {asset.path && <span className={`meta-item meta-path${missingPaths.has(asset.id) ? ' meta-path-missing' : ''}`} title={asset.path}>Path: {asset.path}</span>}
-                            {asset.mediaSiloId && <span className="meta-item">ID: {asset.mediaSiloId}</span>}
                           </div>
                         </div>
                         <div className="alm-asset-actions">
@@ -655,14 +568,6 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                               onClick={() => relinkAsset(asset.id, 'video')}
                             >
                               Re-link File
-                            </button>
-                          )}
-                          {asset.source === 'mediasilo' && (
-                            <button
-                              className="btn btn-small btn-primary"
-                              onClick={() => linkMediaSiloAssetPath(asset.key, asset.mediaSiloId, 'video')}
-                            >
-                              Link Cache File
                             </button>
                           )}
                           <button
@@ -694,9 +599,6 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
               <div className="alm-actions">
                 <button className="btn btn-small btn-secondary" onClick={() => addSlateAsset('append')}>
                   Add Local File
-                </button>
-                <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloAsset('append')}>
-                  Add MediaSilo
                 </button>
               </div>
             </div>
@@ -750,13 +652,10 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                             )}
                           </div>
                           <div className="alm-asset-meta">
-                            <span className={`badge ${asset.source === 'local' ? 'badge-local' : 'badge-mediasilo'}`}>
-                              {asset.source === 'local' ? 'Local' : 'MediaSilo'}
-                            </span>
+                            <span className="badge badge-local">Local</span>
                             <span className="meta-item">Key: <code>{asset.key}</code></span>
                             {asset.duration && <span className="meta-item">Duration: {asset.duration.toFixed(1)}s</span>}
                             {asset.path && <span className={`meta-item meta-path${missingPaths.has(asset.id) ? ' meta-path-missing' : ''}`} title={asset.path}>Path: {asset.path}</span>}
-                            {asset.mediaSiloId && <span className="meta-item">ID: {asset.mediaSiloId}</span>}
                           </div>
                         </div>
                         <div className="alm-asset-actions">
@@ -766,14 +665,6 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                               onClick={() => relinkAsset(asset.id, 'video')}
                             >
                               Re-link File
-                            </button>
-                          )}
-                          {asset.source === 'mediasilo' && (
-                            <button
-                              className="btn btn-small btn-primary"
-                              onClick={() => linkMediaSiloAssetPath(asset.key, asset.mediaSiloId, 'video')}
-                            >
-                              Link Cache File
                             </button>
                           )}
                           <button
@@ -805,9 +696,6 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
               <div className="alm-actions">
                 <button className="btn btn-small btn-secondary" onClick={() => addOverlayAsset()}>
                   Add Local File
-                </button>
-                <button className="btn btn-small btn-secondary" onClick={() => addMediaSiloOverlay()}>
-                  Add MediaSilo
                 </button>
               </div>
             </div>
@@ -861,12 +749,9 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                               )}
                             </div>
                             <div className="alm-asset-meta">
-                              <span className={`badge ${asset.source === 'local' ? 'badge-local' : 'badge-mediasilo'}`}>
-                                {asset.source === 'local' ? 'Local' : 'MediaSilo'}
-                              </span>
+                              <span className="badge badge-local">Local</span>
                               <span className="meta-item">Key: <code>{asset.key}</code></span>
                               {asset.path && <span className={`meta-item meta-path${missingPaths.has(asset.id) ? ' meta-path-missing' : ''}`} title={asset.path}>Path: {asset.path}</span>}
-                              {asset.mediaSiloId && <span className="meta-item">ID: {asset.mediaSiloId}</span>}
                             </div>
                           </div>
                           <div className="alm-asset-actions">
@@ -876,14 +761,6 @@ export default function AssetLibraryManager({ onBack }: AssetLibraryManagerProps
                                 onClick={() => relinkAsset(asset.id, 'image')}
                               >
                                 Re-link File
-                              </button>
-                            )}
-                            {asset.source === 'mediasilo' && (
-                              <button
-                                className="btn btn-small btn-primary"
-                                onClick={() => linkMediaSiloAssetPath(asset.key, asset.mediaSiloId, 'image')}
-                              >
-                                Link Cache File
                               </button>
                             )}
                             <button

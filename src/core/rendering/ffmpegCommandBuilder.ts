@@ -6,6 +6,30 @@
 import path from 'path';
 import { RenderJob, ScalingMode } from '../models/types';
 
+const DEFAULT_OUTPUT_FPS: RenderJob['preset']['fps'] = 59.94;
+
+function normalizeOutputFps(value: number | undefined): RenderJob['preset']['fps'] {
+  if (value === 60 || value === 59.94 || value === 30 || value === 29.97) {
+    return value;
+  }
+  return DEFAULT_OUTPUT_FPS;
+}
+
+function toFfmpegFpsValue(value: RenderJob['preset']['fps']): string {
+  switch (value) {
+    case 59.94:
+      return '60000/1001';
+    case 29.97:
+      return '30000/1001';
+    case 60:
+      return '60';
+    case 30:
+      return '30';
+    default:
+      return '60000/1001';
+  }
+}
+
 export interface FFmpegCommand {
   /** Program name */
   program: string;
@@ -115,6 +139,8 @@ export function buildFFmpegCommand(job: RenderJob): FFmpegCommand {
   const preset = job.preset;
   const source = job.source;
   const outputPath = job.outputPath;
+  const outputFps = normalizeOutputFps(preset.fps);
+  const ffmpegFps = toFfmpegFpsValue(outputFps);
 
   const args: string[] = ['-i', source.filePath];
   let nextInputIndex = 1;
@@ -159,7 +185,7 @@ export function buildFFmpegCommand(job: RenderJob): FFmpegCommand {
         preset.width,
         preset.height,
         preset.scalingMode
-      )},fps=60000/1001,setpts=PTS-STARTPTS[src_v_base]`
+      )},fps=${ffmpegFps},setpts=PTS-STARTPTS[src_v_base]`
     );
 
     let sourceVideoLabel = 'src_v_base';
@@ -187,7 +213,7 @@ export function buildFFmpegCommand(job: RenderJob): FFmpegCommand {
             preset.width,
             preset.height,
             'scale'
-          )},fps=60000/1001,setpts=PTS-STARTPTS[intro_v]`
+          )},fps=${ffmpegFps},setpts=PTS-STARTPTS[intro_v]`
         );
         buildSafeAudioSegment(
           filterParts,
@@ -216,7 +242,7 @@ export function buildFFmpegCommand(job: RenderJob): FFmpegCommand {
             preset.width,
             preset.height,
             'scale'
-          )},fps=60000/1001,setpts=PTS-STARTPTS[outro_v]`
+          )},fps=${ffmpegFps},setpts=PTS-STARTPTS[outro_v]`
         );
         buildSafeAudioSegment(
           filterParts,
@@ -285,7 +311,7 @@ export function buildFFmpegCommand(job: RenderJob): FFmpegCommand {
     args.push('-crf', String(preset.crf));
   }
   args.push('-preset', 'medium');
-  args.push('-r', '60000/1001');
+  args.push('-r', ffmpegFps);
 
   // Audio encoding
   const audioBitrate = preset.audioBitrate || 320;
@@ -307,7 +333,7 @@ export function buildFFmpegCommand(job: RenderJob): FFmpegCommand {
   args.push(outputPath);
 
   const fullCommand = `ffmpeg ${args.join(' ')}`;
-  const description = `Encode ${preset.width}x${preset.height} @ 59.94fps (h264 CBR ${bitrate}kbps / aac 320k 48kHz) with preset ${preset.name}`;
+  const description = `Encode ${preset.width}x${preset.height} @ ${outputFps}fps (h264 CBR ${bitrate}kbps / aac 320k 48kHz) with preset ${preset.name}`;
 
   return {
     program: 'ffmpeg',

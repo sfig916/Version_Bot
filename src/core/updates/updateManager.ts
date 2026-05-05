@@ -1,9 +1,42 @@
 import { app } from 'electron';
 import { autoUpdater } from 'electron-updater';
+import path from 'path';
+import fs from 'fs';
 import { getLogger } from '../logging/logger';
 import { BundleUpdateResult, fetchPresetBundle, mergeBundle } from './bundleLoader';
 
 const logger = getLogger('updater');
+
+// Get app version from package.json
+function getPackageVersion(): string {
+  try {
+    // Try multiple possible paths for package.json
+    const pathsToTry = [
+      path.join(app.getAppPath(), 'package.json'),
+      path.join(app.getAppPath(), '..', 'package.json'),
+      path.join(app.getAppPath(), '..', '..', 'package.json'),
+      path.join(process.cwd(), 'package.json'),
+    ];
+
+    for (const pkgPath of pathsToTry) {
+      try {
+        if (fs.existsSync(pkgPath)) {
+          const content = fs.readFileSync(pkgPath, 'utf-8');
+          const pkg = JSON.parse(content) as { version?: string };
+          if (pkg.version) {
+            return pkg.version;
+          }
+        }
+      } catch {
+        // Continue to next path
+      }
+    }
+  } catch {
+    // Fall through
+  }
+
+  return app.getVersion();
+}
 
 export interface AppUpdateStatus {
   available: boolean;
@@ -25,7 +58,7 @@ export interface BundleCheckResult {
 
 let appUpdateStatus: AppUpdateStatus = {
   available: false,
-  currentVersion: app.getVersion(),
+  currentVersion: getPackageVersion(),
   status: 'idle',
 };
 

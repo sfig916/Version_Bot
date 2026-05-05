@@ -9,6 +9,15 @@ import yaml from 'yaml';
 import { z } from 'zod';
 import { OutputPreset, SlateConfig, OverlayConfig } from '../models/types';
 
+const ALLOWED_OUTPUT_FPS = [60, 59.94, 30, 29.97] as const;
+
+function normalizeLoadedFps(value: number): OutputPreset['fps'] {
+  if (value === 60 || value === 59.94 || value === 30 || value === 29.97) {
+    return value;
+  }
+  return 59.94;
+}
+
 // Zod validation schemas
 const slateConfigSchema = z
   .object({
@@ -53,6 +62,12 @@ const outputPresetSchema = z
     audioBitrate: z.coerce.number().positive().default(320),
     audioCodec: z.enum(['aac', 'libopus', 'libvorbis', 'mp3']).default('aac'),
     container: z.enum(['mp4', 'webm', 'mov', 'mkv']).default('mp4'),
+    fps: z.coerce
+      .number()
+      .refine((value) => ALLOWED_OUTPUT_FPS.includes(value as (typeof ALLOWED_OUTPUT_FPS)[number]), {
+        message: 'fps must be one of: 60, 59.94, 30, 29.97',
+      })
+      .default(59.94),
     maxFileSizeMB: z.coerce.number().min(0).optional(),
     introSlate: slateConfigSchema.optional(),
     outroSlate: slateConfigSchema.optional(),
@@ -108,7 +123,10 @@ export async function loadPresetsFromFile(
   topLevel.presets.forEach((rawPreset, index) => {
     const parsedPreset = outputPresetSchema.safeParse(rawPreset);
     if (parsedPreset.success) {
-      validPresets.push(parsedPreset.data);
+      validPresets.push({
+        ...parsedPreset.data,
+        fps: normalizeLoadedFps(parsedPreset.data.fps),
+      });
       return;
     }
 
@@ -166,7 +184,11 @@ export async function savePresetsToFile(
  * Validate a single preset
  */
 export function validatePreset(preset: unknown): OutputPreset {
-  return outputPresetSchema.parse(preset);
+  const parsed = outputPresetSchema.parse(preset);
+  return {
+    ...parsed,
+    fps: normalizeLoadedFps(parsed.fps),
+  };
 }
 
 /**
@@ -230,6 +252,7 @@ export function createExamplePresets(): OutputPreset[] {
       audioBitrate: 320,
       audioCodec: 'aac',
       container: 'mp4',
+      fps: 59.94,
     },
     {
       id: 'vertical_9_16',
@@ -242,6 +265,7 @@ export function createExamplePresets(): OutputPreset[] {
       audioBitrate: 320,
       audioCodec: 'aac',
       container: 'mp4',
+      fps: 59.94,
     },
     {
       id: 'square_1_1',
@@ -254,6 +278,7 @@ export function createExamplePresets(): OutputPreset[] {
       audioBitrate: 320,
       audioCodec: 'aac',
       container: 'mp4',
+      fps: 59.94,
     },
     {
       id: 'portrait_4_5',
@@ -266,6 +291,7 @@ export function createExamplePresets(): OutputPreset[] {
       audioBitrate: 320,
       audioCodec: 'aac',
       container: 'mp4',
+      fps: 59.94,
     },
   ];
 }
