@@ -31,22 +31,52 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Resolve signing/notarization mode
+        shell: bash
+        env:
+          MAC_CSC_LINK_B64: ${{ secrets.MAC_CSC_LINK_B64 }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          HAS_CERT=false
+          HAS_NOTARY=false
+
+          if [ -n "$MAC_CSC_LINK_B64" ] && [ -n "$MAC_CSC_KEY_PASSWORD" ]; then
+            HAS_CERT=true
+          fi
+
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            HAS_NOTARY=true
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.notarize }}" = "true" ]; then
+            if [ "$HAS_CERT" != "true" ]; then
+              echo "::error::Manual notarized build requested, but MAC_CSC_LINK_B64/MAC_CSC_KEY_PASSWORD secrets are missing"
+              exit 1
+            fi
+            if [ "$HAS_NOTARY" != "true" ]; then
+              echo "::error::Manual notarized build requested, but APPLE_ID/APPLE_APP_SPECIFIC_PASSWORD/APPLE_TEAM_ID secrets are missing"
+              exit 1
+            fi
+          fi
+
+          if [ "$HAS_CERT" = "true" ] && [ "$HAS_NOTARY" = "true" ]; then
+            echo "MAC_SIGN_AND_NOTARIZE=true" >> "$GITHUB_ENV"
+            echo "Using signed + notarized macOS build mode"
+          else
+            echo "MAC_SIGN_AND_NOTARIZE=false" >> "$GITHUB_ENV"
+            echo "::warning::Signing/notarization secrets not fully configured; using unsigned macOS build mode"
+          fi
+
       - name: Prepare macOS signing certificate
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.notarize || github.event_name != 'workflow_dispatch' }}
+        if: ${{ env.MAC_SIGN_AND_NOTARIZE == 'true' }}
         shell: bash
         env:
           MAC_CSC_LINK_B64: ${{ secrets.MAC_CSC_LINK_B64 }}
           MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
         run: |
-          if [ -z "$MAC_CSC_LINK_B64" ]; then
-            echo "::error::Secret MAC_CSC_LINK_B64 not set"
-            exit 1
-          fi
-          if [ -z "$MAC_CSC_KEY_PASSWORD" ]; then
-            echo "::error::Secret MAC_CSC_KEY_PASSWORD not set"
-            exit 1
-          fi
-
           CERT_PATH="$GITHUB_WORKSPACE/macos-signing-cert.p12"
           echo "$MAC_CSC_LINK_B64" | base64 --decode > "$CERT_PATH"
 
@@ -55,28 +85,7 @@ jobs:
             echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
 
-      - name: Validate notarization secrets
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.notarize || github.event_name != 'workflow_dispatch' }}
-        shell: bash
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          if [ -z "$APPLE_ID" ]; then
-            echo "::error::Secret APPLE_ID not set"
-            exit 1
-          fi
-          if [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
-            echo "::error::Secret APPLE_APP_SPECIFIC_PASSWORD not set"
-            exit 1
-          fi
-          if [ -z "$APPLE_TEAM_ID" ]; then
-            echo "::error::Secret APPLE_TEAM_ID not set"
-            exit 1
-          fi
-
-      - name: Build unsigned macOS artifacts
+      - name: Build unsigned macOS artifacts (manual)
         if: ${{ github.event_name == 'workflow_dispatch' && !inputs.notarize }}
         env:
           VITE_BUNDLE_URL: https://raw.githubusercontent.com/sfig916/Version_Bot/main/presets-bundle.json
@@ -85,7 +94,7 @@ jobs:
           npx electron-builder --mac dmg zip --universal --publish never
 
       - name: Build signed and notarized macOS artifacts (manual)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.notarize }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.notarize && env.MAC_SIGN_AND_NOTARIZE == 'true' }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -95,12 +104,20 @@ jobs:
           npm run build
           npx electron-builder --mac dmg zip --universal --publish never
 
-      - name: Build and publish release (tag push)
-        if: ${{ github.event_name != 'workflow_dispatch' }}
+      - name: Build signed and notarized release (tag push)
+        if: ${{ github.event_name != 'workflow_dispatch' && env.MAC_SIGN_AND_NOTARIZE == 'true' }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          VITE_BUNDLE_URL: https://raw.githubusercontent.com/sfig916/Version_Bot/main/presets-bundle.json
+        run: |
+          npm run build
+          npx electron-builder --mac dmg zip --universal --publish never
+
+      - name: Build unsigned release (tag push)
+        if: ${{ github.event_name != 'workflow_dispatch' && env.MAC_SIGN_AND_NOTARIZE != 'true' }}
+        env:
           VITE_BUNDLE_URL: https://raw.githubusercontent.com/sfig916/Version_Bot/main/presets-bundle.json
         run: |
           npm run build
