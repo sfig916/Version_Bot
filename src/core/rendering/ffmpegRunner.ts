@@ -28,6 +28,10 @@ export interface JobResult {
 export type ProgressCallback = (progress: JobProgress) => void;
 export type CompleteCallback = (result: JobResult) => void;
 
+const MAX_FILESIZE_RETRIES = 2;
+const RETRY_BITRATE_SAFETY_MARGIN = 0.985;
+const MIN_RETRY_VIDEO_BITRATE_KBPS = 500;
+
 /**
  * Get ffmpeg binary path (prefers bundled ffmpeg-static)
  */
@@ -89,7 +93,9 @@ export function runJob(
   onComplete?: CompleteCallback
 ): () => void {
   const ffmpegPath = getFFmpegPath();
-  const command = buildFFmpegCommand(job);
+  const targetMaxBytes =
+    job.maxFileSizeMB > 0 ? Math.floor(job.maxFileSizeMB * 1024 * 1024) : 0;
+  const initialBitrate = job.adjustedBitrate || job.preset.bitrate;
   const startTime = Date.now();
 
   // Ensure output directory exists
@@ -101,59 +107,131 @@ export function runJob(
   let proc: ChildProcess | null = null;
   let cancelled = false;
 
-  proc = spawn(ffmpegPath, command.args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  const startAttempt = (bitrateKbps: number, retryCount: number): void => {
+    const attemptJob: RenderJob = {
+      ...job,
+      adjustedBitrate: bitrateKbps,
+    };
+    const command = buildFFmpegCommand(attemptJob);
 
-  let stderr = '';
+    proc = spawn(ffmpegPath, command.args, { stdio: ['ignore', 'pipe', 'pipe'] });
 
-  proc.stderr?.on('data', (chunk: Buffer) => {
-    const text = chunk.toString();
-    stderr += text;
+    let stderr = '';
 
-    // Emit progress from each progress line
-    const lines = text.split('\r');
-    for (const line of lines) {
-      const progress = parseProgress(line, job.source.duration);
-      if (progress && onProgress) {
-        onProgress({ ...progress, jobId: job.id });
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString();
+      stderr += text;
+
+      // Emit progress from each progress line
+      const lines = text.split('\r');
+      for (const line of lines) {
+        const progress = parseProgress(line, job.source.duration);
+        if (progress && onProgress) {
+          onProgress({ ...progress, jobId: job.id });
+        }
       }
-    }
-  });
+    });
 
-  proc.on('close', (code) => {
-    const durationMs = Date.now() - startTime;
-    if (cancelled) return;
+    proc.on('close', (code) => {
+      const durationMs = Date.now() - startTime;
+      if (cancelled) return;
 
-    if (code === 0) {
-      onComplete?.({
-        jobId: job.id,
-        success: true,
-        outputPath: job.outputPath,
-        durationMs,
-      });
-    } else {
-      // Extract last meaningful error from stderr
-      const errorLine = stderr
-        .split('\n')
-        .filter((l) => l.includes('Error') || l.includes('Invalid') || l.includes('No such'))
-        .pop() ?? `FFmpeg exited with code ${code}`;
+      if (code !== 0) {
+        // Extract last meaningful error from stderr
+        const errorLine = stderr
+          .split('\n')
+          .filter((l) => l.includes('Error') || l.includes('Invalid') || l.includes('No such'))
+          .pop() ?? `FFmpeg exited with code ${code}`;
 
+        onComplete?.({
+          jobId: job.id,
+          success: false,
+          error: errorLine.trim(),
+          durationMs,
+        });
+        return;
+      }
+
+      if (targetMaxBytes <= 0) {
+        onComplete?.({
+          jobId: job.id,
+          success: true,
+          outputPath: job.outputPath,
+          durationMs,
+        });
+        return;
+      }
+
+      const outputSizeBytes = fs.existsSync(job.outputPath)
+        ? fs.statSync(job.outputPath).size
+        : 0;
+
+      if (outputSizeBytes <= targetMaxBytes) {
+        onComplete?.({
+          jobId: job.id,
+          success: true,
+          outputPath: job.outputPath,
+          durationMs,
+        });
+        return;
+      }
+
+      if (retryCount >= MAX_FILESIZE_RETRIES) {
+        onComplete?.({
+          jobId: job.id,
+          success: false,
+          error: `Output exceeded max size (${job.maxFileSizeMB} MB): ${Math.ceil(outputSizeBytes / (1024 * 1024))} MB after ${retryCount + 1} attempt(s).`,
+          durationMs,
+        });
+        return;
+      }
+
+      const ratio = targetMaxBytes / outputSizeBytes;
+      const nextBitrate = Math.max(
+        MIN_RETRY_VIDEO_BITRATE_KBPS,
+        Math.floor(bitrateKbps * ratio * RETRY_BITRATE_SAFETY_MARGIN)
+      );
+
+      if (nextBitrate >= bitrateKbps) {
+        onComplete?.({
+          jobId: job.id,
+          success: false,
+          error: `Unable to reduce bitrate enough to satisfy max size (${job.maxFileSizeMB} MB).`,
+          durationMs,
+        });
+        return;
+      }
+
+      try {
+        if (fs.existsSync(job.outputPath)) {
+          fs.unlinkSync(job.outputPath);
+        }
+      } catch (unlinkError) {
+        onComplete?.({
+          jobId: job.id,
+          success: false,
+          error: unlinkError instanceof Error
+            ? unlinkError.message
+            : 'Failed to remove oversized output before retry',
+          durationMs,
+        });
+        return;
+      }
+
+      startAttempt(nextBitrate, retryCount + 1);
+    });
+
+    proc.on('error', (err) => {
       onComplete?.({
         jobId: job.id,
         success: false,
-        error: errorLine.trim(),
-        durationMs,
+        error: err.message,
+        durationMs: Date.now() - startTime,
       });
-    }
-  });
-
-  proc.on('error', (err) => {
-    onComplete?.({
-      jobId: job.id,
-      success: false,
-      error: err.message,
-      durationMs: Date.now() - startTime,
     });
-  });
+  };
+
+  startAttempt(initialBitrate, 0);
 
   // Return cancel function
   return () => {

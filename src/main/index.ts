@@ -1373,27 +1373,51 @@ ipcMain.handle(
     outputDir: string,
     filenamePattern: string,
     fileSizeConstraints?: Record<string, number>,
-    overlayDurationOverrideSeconds?: number
+    overlayDurationOverrideSeconds?: number,
+    overlayAssetOverrideLibraryId?: string
   ) => {
     try {
+      // Resolve overlay asset path from library if an override is specified
+      let overlayAssetOverridePath: string | undefined;
+      if (overlayAssetOverrideLibraryId) {
+        try {
+          const overlayLibraryItems = readAssetLibrary('version-bot-overlay-library') as Array<{ id: string; path?: string }>;
+          const match = overlayLibraryItems.find((item) => item.id === overlayAssetOverrideLibraryId);
+          if (match?.path) {
+            overlayAssetOverridePath = match.path;
+          }
+        } catch {
+          // If library read fails, proceed without asset override
+        }
+      }
+
       const selectedPresets = allPresets
         .filter((p) => selectedPresetIds.includes(p.id))
         .map((preset) => {
+          if (!preset.overlay?.enabled) return preset;
+
+          const overlayOverrides: Record<string, unknown> = {};
+
           if (
             typeof overlayDurationOverrideSeconds === 'number' &&
-            overlayDurationOverrideSeconds > 0 &&
-            preset.overlay?.enabled
+            overlayDurationOverrideSeconds > 0
           ) {
-            return {
-              ...preset,
-              overlay: {
-                ...preset.overlay,
-                duration: overlayDurationOverrideSeconds,
-              },
-            };
+            overlayOverrides.duration = overlayDurationOverrideSeconds;
           }
 
-          return preset;
+          if (overlayAssetOverridePath) {
+            overlayOverrides.assetPath = overlayAssetOverridePath;
+          }
+
+          if (Object.keys(overlayOverrides).length === 0) return preset;
+
+          return {
+            ...preset,
+            overlay: {
+              ...preset.overlay,
+              ...overlayOverrides,
+            },
+          };
         });
 
       if (selectedPresets.length === 0) {

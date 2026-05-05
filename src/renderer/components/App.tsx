@@ -367,7 +367,8 @@ export default function App() {
     filenamePattern: string,
     fileSizeConstraints: Record<string, number>,
     autoRun = false,
-    overlayDurationOverrideSeconds?: number
+    overlayDurationOverrideSeconds?: number,
+    overlayAssetOverrideLibraryId?: string
   ) => {
     if (!state.selectedVideo) {
       handleVideoError('No video selected');
@@ -389,7 +390,8 @@ export default function App() {
         outputDir,
         filenamePattern,
         fileSizeConstraints,
-        overlayDurationOverrideSeconds
+        overlayDurationOverrideSeconds,
+        overlayAssetOverrideLibraryId
       );
 
       if (result.success && result.data) {

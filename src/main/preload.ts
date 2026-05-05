@@ -136,7 +136,8 @@ const api = {
     outputDir: string,
     filenamePattern: string,
     fileSizeConstraints?: Record<string, number>,
-    overlayDurationOverrideSeconds?: number
+    overlayDurationOverrideSeconds?: number,
+    overlayAssetOverrideLibraryId?: string
   ) =>
     ipcRenderer.invoke(
       'create-render-plan',
@@ -146,7 +147,8 @@ const api = {
       outputDir,
       filenamePattern,
       fileSizeConstraints,
-      overlayDurationOverrideSeconds
+      overlayDurationOverrideSeconds,
+      overlayAssetOverrideLibraryId
     ) as Promise<APIResult<RenderPlan>>,
 
   getRenderPlan: () =>

@@ -16,6 +16,20 @@ import { hasMatchingAspectRatio } from './aspectRatio';
 
 export { hasMatchingAspectRatio } from './aspectRatio';
 
+const MIN_VIDEO_BITRATE_KBPS = 500;
+const SIZE_TARGET_SAFETY_MARGIN = 0.985;
+
+function estimateOutputDurationSeconds(source: VideoMetadata, preset: OutputPreset): number {
+  const introDuration = preset.introSlate?.enabled
+    ? Math.max(0, Number(preset.introSlate.duration) || 0)
+    : 0;
+  const outroDuration = preset.outroSlate?.enabled
+    ? Math.max(0, Number(preset.outroSlate.duration) || 0)
+    : 0;
+
+  return Math.max(0.1, source.duration + introDuration + outroDuration);
+}
+
 function getBaseFilename(filePath: string): string {
   const parsed = path.parse(filePath);
   return parsed.name;
@@ -77,14 +91,17 @@ function sanitizeOutputFilename(rawFilename: string, fallbackExt: string): strin
 export function calculateAdjustedBitrate(
   constraint: FileSizeConstraint
 ): number {
+  const safeDuration = Math.max(0.1, Number(constraint.duration) || 0.1);
+  const safeAudioBitrate = Math.max(0, Number(constraint.audioBitrate) || 0);
+
   // Convert MB to bits
-  const totalBits = constraint.maxSizeMB * 8 * 1024 * 1024;
+  const totalBits = constraint.maxSizeMB * 8 * 1024 * 1024 * SIZE_TARGET_SAFETY_MARGIN;
   // Divide by duration to get bits per second (bps)
-  const totalBps = totalBits / constraint.duration;
+  const totalBps = totalBits / safeDuration;
   // Convert to kbps
   const totalKbps = Math.round(totalBps / 1000);
   // Reserve the configured audio bitrate, then only clamp video downward.
-  const maxVideoBitrate = Math.max(500, totalKbps - constraint.audioBitrate);
+  const maxVideoBitrate = Math.max(MIN_VIDEO_BITRATE_KBPS, totalKbps - safeAudioBitrate);
   return Math.min(constraint.currentBitrate, maxVideoBitrate);
 }
 
@@ -163,9 +180,9 @@ export function generateRenderJobs(
     if (job.maxFileSizeMB > 0) {
       const constraint: FileSizeConstraint = {
         maxSizeMB: job.maxFileSizeMB,
-        duration: job.source.duration,
+        duration: estimateOutputDurationSeconds(job.source, job.preset),
         currentBitrate: job.preset.bitrate,
-        audioBitrate: job.preset.audioBitrate,
+        audioBitrate: job.preset.audioBitrate || 320,
         targetBitrate: 0,
       };
 
@@ -191,9 +208,9 @@ export function applyFileSizeConstraints(
       if (maxSizeMB > 0) {
         const constraint: FileSizeConstraint = {
           maxSizeMB,
-          duration: job.source.duration,
+          duration: estimateOutputDurationSeconds(job.source, job.preset),
           currentBitrate: job.preset.bitrate,
-          audioBitrate: job.preset.audioBitrate,
+          audioBitrate: job.preset.audioBitrate || 320,
           targetBitrate: 0,
         };
 

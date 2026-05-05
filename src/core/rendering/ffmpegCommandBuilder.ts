@@ -273,10 +273,14 @@ export function buildFFmpegCommand(job: RenderJob): FFmpegCommand {
     args.push('-filter:v', videoFilter);
   }
 
-  // Video encoding — always h264 CBR (no CRF)
+  // Video encoding — strict h264 CBR
   const bitrate = job.adjustedBitrate || preset.bitrate;
   args.push('-c:v', 'libx264');
   args.push('-b:v', `${bitrate}k`);
+  args.push('-maxrate', `${bitrate}k`);
+  args.push('-bufsize', `${Math.floor(bitrate / 2)}k`);
+  args.push('-nal-hrd', 'cbr');
+  args.push('-pix_fmt', 'yuv420p');
   if (preset.crf !== undefined) {
     args.push('-crf', String(preset.crf));
   }

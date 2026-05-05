@@ -121,7 +121,8 @@ interface PresetSelectorProps {
     filenamePattern: string,
     fileSizeConstraints: Record<string, number>,
     autoRun?: boolean,
-    overlayDurationOverrideSeconds?: number
+    overlayDurationOverrideSeconds?: number,
+    overlayAssetOverrideLibraryId?: string
   ) => void;
   onUpsertPreset: (preset: OutputPreset, previousPresetId?: string) => void;
   onBack: () => void;
@@ -192,6 +193,7 @@ export default function PresetSelector({
   const [batchOverlayOverrideEnabled, setBatchOverlayOverrideEnabled] = useState(false);
   const [batchOverlayOverrideSecondsPart, setBatchOverlayOverrideSecondsPart] = useState('4');
   const [batchOverlayOverrideFramesPart, setBatchOverlayOverrideFramesPart] = useState('0');
+  const [batchOverlayAssetLibraryId, setBatchOverlayAssetLibraryId] = useState('');
   const hasMaxFileSize = Number(draft.maxFileSizeMB || 0) > 0;
   const sortedPresets = presets.slice().sort((a, b) => a.name.localeCompare(b.name));
   const allPresetsSelected = sortedPresets.length > 0
@@ -317,7 +319,8 @@ export default function PresetSelector({
       filenamePattern,
       constraints,
       true,
-      overlayDurationOverrideSeconds
+      overlayDurationOverrideSeconds,
+      batchOverlayOverrideEnabled && batchOverlayAssetLibraryId ? batchOverlayAssetLibraryId : undefined
     );
   };
 
@@ -871,7 +874,7 @@ export default function PresetSelector({
         </p>
 
         <div className="video-info">
-          <h3>Source Video</h3>
+          <h3>Source Video: {video.filePath.split(/[\/\\]/).pop()}</h3>
           <div className="video-stats-row">
             <span>
               <strong>Aspect Ratio:</strong> {formatAspectRatioLabel(video.width, video.height)}
@@ -896,8 +899,8 @@ export default function PresetSelector({
           <table className="preset-table">
             <thead>
               <tr>
-                <th>
-                  <div className="select-all-header">
+                <th className="sticky-column sticky-column-select">
+                  <div className="preset-cell preset-cell-select select-all-header">
                     <span>Select</span>
                     <input
                       type="checkbox"
@@ -912,18 +915,22 @@ export default function PresetSelector({
                     />
                   </div>
                 </th>
-                <th>Preset Name</th>
-                <th>Prepend</th>
-                <th>Append</th>
-                <th>ESRB Overlay</th>
-                <th>Aspect Ratio</th>
-                <th>Resolution</th>
-                <th>Target Bitrate</th>
-                <th>Max Filesize</th>
-                <th>FPS</th>
-                <th>Codec/Format</th>
-                <th>Audio Specs</th>
-                <th>Actions</th>
+                <th className="sticky-column sticky-column-name">
+                  <div className="preset-cell">Preset Name</div>
+                </th>
+                <th><div className="preset-cell">Prepend</div></th>
+                <th><div className="preset-cell">Append</div></th>
+                <th><div className="preset-cell">ESRB Overlay</div></th>
+                <th><div className="preset-cell">Aspect Ratio</div></th>
+                <th><div className="preset-cell">Resolution</div></th>
+                <th><div className="preset-cell">Target Bitrate</div></th>
+                <th><div className="preset-cell">Max Filesize</div></th>
+                <th><div className="preset-cell">FPS</div></th>
+                <th><div className="preset-cell">Codec/Format</div></th>
+                <th><div className="preset-cell">Audio Specs</div></th>
+                <th className="sticky-column sticky-column-actions">
+                  <div className="preset-cell preset-cell-actions">Actions</div>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -932,48 +939,62 @@ export default function PresetSelector({
                 return (
                   <React.Fragment key={preset.id}>
                     <tr className={isSelected ? 'row-selected' : ''}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => onPresetToggle(preset.id)}
-                        />
+                      <td className="sticky-column sticky-column-select">
+                        <div className="preset-cell preset-cell-select">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => onPresetToggle(preset.id)}
+                          />
+                        </div>
                       </td>
-                      <td>{preset.name}</td>
+                      <td className="sticky-column sticky-column-name">
+                        <div className="preset-cell">{preset.name}</div>
+                      </td>
                       <td className={isSlateMissing(preset.introSlate) ? 'overlay-missing' : ''}>
-                        {getIntroDisplay(preset.introSlate)}
+                        <div className="preset-cell">{getIntroDisplay(preset.introSlate)}</div>
                       </td>
                       <td className={isSlateMissing(preset.outroSlate) ? 'overlay-missing' : ''}>
-                        {getOutroDisplay(preset.outroSlate)}
+                        <div className="preset-cell">{getOutroDisplay(preset.outroSlate)}</div>
                       </td>
                       <td className={isOverlayAssetMissing(preset) ? 'overlay-missing' : ''}>
-                        {getOverlayDisplay(preset)}
+                        <div className="preset-cell">{getOverlayDisplay(preset)}</div>
                       </td>
-                      <td>{formatAspectRatioLabel(preset.width, preset.height)}</td>
-                      <td>{preset.width}x{preset.height}</td>
-                      <td>{formatVideoBitrateMbps(preset.bitrate)} Mbps</td>
+                      <td><div className="preset-cell">{formatAspectRatioLabel(preset.width, preset.height)}</div></td>
+                      <td><div className="preset-cell">{preset.width}x{preset.height}</div></td>
                       <td>
-                        {preset.maxFileSizeMB && preset.maxFileSizeMB > 0
-                          ? `${preset.maxFileSizeMB} MB`
-                          : 'No limit'}
+                        <div className="preset-cell">
+                          {preset.maxFileSizeMB && preset.maxFileSizeMB > 0
+                            ? 'Auto'
+                            : `${formatVideoBitrateMbps(preset.bitrate)} Mbps`}
+                        </div>
                       </td>
-                      <td>59.94</td>
-                      <td>{preset.videoCodec.toUpperCase()} / {preset.container.toUpperCase()}</td>
-                      <td>{preset.audioCodec.toUpperCase()} @ {preset.audioBitrate || 320} kbps</td>
-                      <td className="preset-row-actions-cell">
-                        <div className="preset-row-actions">
-                          <button
-                            className="btn btn-small btn-secondary"
-                            onClick={() => handleDuplicatePreset(preset)}
-                          >
-                            Duplicate
-                          </button>
-                          <button
-                            className="btn btn-small btn-secondary"
-                            onClick={() => handleEditPreset(preset)}
-                          >
-                            Edit
-                          </button>
+                      <td>
+                        <div className="preset-cell">
+                          {preset.maxFileSizeMB && preset.maxFileSizeMB > 0
+                            ? `${preset.maxFileSizeMB} MB`
+                            : 'No limit'}
+                        </div>
+                      </td>
+                      <td><div className="preset-cell">59.94</div></td>
+                      <td><div className="preset-cell">{preset.videoCodec.toUpperCase()} / {preset.container.toUpperCase()}</div></td>
+                      <td><div className="preset-cell">{preset.audioCodec.toUpperCase()} @ {preset.audioBitrate || 320} kbps</div></td>
+                      <td className="sticky-column sticky-column-actions preset-row-actions-cell">
+                        <div className="preset-cell preset-cell-actions">
+                          <div className="preset-row-actions">
+                            <button
+                              className="btn btn-small btn-secondary"
+                              onClick={() => handleDuplicatePreset(preset)}
+                            >
+                              Duplicate
+                            </button>
+                            <button
+                              className="btn btn-small btn-secondary"
+                              onClick={() => handleEditPreset(preset)}
+                            >
+                              Edit
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -1020,31 +1041,45 @@ export default function PresetSelector({
                 checked={batchOverlayOverrideEnabled}
                 onChange={(e) => setBatchOverlayOverrideEnabled(e.target.checked)}
               />
-              <span className="batch-overlay-override-label">Override ESRB Overlay Duration For This Batch</span>
+              <span className="batch-overlay-override-label">Override ESRB Overlay For This Batch</span>
             </label>
             {batchOverlayOverrideEnabled && (
-              <div className="duration-grid">
-                <div className="duration-field">
-                  <label>Seconds</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={batchOverlayOverrideSecondsPart}
-                    onChange={(e) => setBatchOverlayOverrideSecondsPart(e.target.value)}
-                  />
+              <>
+                <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                  <label>Overlay Asset</label>
+                  <select
+                    value={batchOverlayAssetLibraryId}
+                    onChange={(e) => setBatchOverlayAssetLibraryId(e.target.value)}
+                  >
+                    <option value="">— Keep preset default —</option>
+                    {overlayLibrary.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
                 </div>
-                <div className="duration-field">
-                  <label>Frames</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={batchOverlayOverrideFramesPart}
-                    onChange={(e) => setBatchOverlayOverrideFramesPart(e.target.value)}
-                  />
+                <div className="duration-grid">
+                  <div className="duration-field">
+                    <label>Overlay Duration (Seconds)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={batchOverlayOverrideSecondsPart}
+                      onChange={(e) => setBatchOverlayOverrideSecondsPart(e.target.value)}
+                    />
+                  </div>
+                  <div className="duration-field">
+                    <label>Frames</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={batchOverlayOverrideFramesPart}
+                      onChange={(e) => setBatchOverlayOverrideFramesPart(e.target.value)}
+                    />
+                  </div>
                 </div>
-              </div>
+              </>
             )}
             <span className="help-text">
               Applies only to this export run and does not save into presets.
