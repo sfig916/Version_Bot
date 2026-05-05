@@ -8,26 +8,30 @@ import { AppError } from '../utils/errorHandler';
 import './VideoSelector.css';
 
 interface VideoSelectorProps {
+  selectedVideo: VideoMetadata | null;
   onVideoSelected: (metadata: VideoMetadata) => void;
   onError: (error: string) => void;
   error: AppError | null;
+  onContinueWithSelected: () => void;
+  onClearSelectedVideo: () => void;
   onManagePresets: () => void;
   onManageAssets: () => void;
 }
 
 export default function VideoSelector({
+  selectedVideo,
   onVideoSelected,
   onError,
   error,
+  onContinueWithSelected,
+  onClearSelectedVideo,
   onManagePresets,
   onManageAssets,
 }: VideoSelectorProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   const handleSelectFile = async () => {
     setIsLoading(true);
-    setSelectedFile(null);
     onError('');
 
     try {
@@ -39,8 +43,6 @@ export default function VideoSelector({
         setIsLoading(false);
         return;
       }
-
-      setSelectedFile(filePath);
 
       const result = await window.versionBotAPI.probeVideo(filePath);
       setIsLoading(false);
@@ -64,7 +66,7 @@ export default function VideoSelector({
   return (
     <div className="video-selector">
       <div className="video-selector-content">
-        <div className="selector-content">
+        <div className={`selector-content ${selectedVideo ? 'has-selected-video' : 'no-selected-video'}`}>
           <div className="icon">🎬</div>
           <h2>Select Master Video</h2>
           <p>Choose a video file to create versions from</p>
@@ -74,11 +76,37 @@ export default function VideoSelector({
             onClick={handleSelectFile}
             disabled={isLoading}
           >
-            {isLoading ? 'Analyzing...' : 'Select Video File'}
+            {isLoading
+              ? 'Analyzing...'
+              : selectedVideo
+                ? 'Change Video File'
+                : 'Select Video File'}
           </button>
 
-          {selectedFile && (
-            <p className="selected-file">{selectedFile}</p>
+          {selectedVideo && (
+            <>
+              <div className="selected-video-card">
+                <p className="selected-file-label">Current source video</p>
+                <p className="selected-file">{selectedVideo.filePath}</p>
+              </div>
+
+              <div className="selected-video-actions">
+                <button
+                  className="btn btn-secondary"
+                  onClick={onContinueWithSelected}
+                  disabled={isLoading}
+                >
+                  Continue With This Video
+                </button>
+                <button
+                  className="btn btn-clear"
+                  onClick={onClearSelectedVideo}
+                  disabled={isLoading}
+                >
+                  Remove Source Video
+                </button>
+              </div>
+            </>
           )}
         </div>
 
@@ -88,14 +116,16 @@ export default function VideoSelector({
             onClick={onManagePresets}
             title="Manage rendering presets and output formats"
           >
-            ⚙️ Manage Presets
+            <span className="btn-icon" aria-hidden="true">⚙️</span>
+            <span className="btn-text">Manage Presets</span>
           </button>
           <button
             className="btn btn-nav"
             onClick={onManageAssets}
             title="Manage prepend, append, and overlay assets"
           >
-            📁 Manage Assets
+            <span className="btn-icon" aria-hidden="true">📁</span>
+            <span className="btn-text">Manage Assets</span>
           </button>
         </div>
       </div>

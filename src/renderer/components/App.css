@@ -168,8 +168,21 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   display: inline-flex;
+  justify-content: center;
   align-items: center;
   gap: 0.5rem;
+}
+
+.btn-icon {
+  width: 1em;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.btn-text {
+  display: inline-block;
 }
 
 .btn:disabled {

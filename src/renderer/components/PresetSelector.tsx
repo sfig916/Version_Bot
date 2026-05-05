@@ -143,6 +143,10 @@ interface PresetSelectorProps {
   ) => void;
   onUpsertPreset: (preset: OutputPreset, previousPresetId?: string) => void;
   onBack: () => void;
+  onManagePresets: () => void;
+  onManageAssets: () => void;
+  onChangeSourceVideo: () => void;
+  onRemoveSourceVideo: () => void;
 }
 
 interface PresetDraft {
@@ -191,6 +195,10 @@ export default function PresetSelector({
   onCreatePlan,
   onUpsertPreset,
   onBack,
+  onManagePresets,
+  onManageAssets,
+  onChangeSourceVideo,
+  onRemoveSourceVideo,
 }: PresetSelectorProps) {
   const [outputDir, setOutputDir] = useState<string>(
     getDefaultOutputDir(video.filePath)
@@ -208,7 +216,6 @@ export default function PresetSelector({
   const [batchOverlayAssetLibraryId, setBatchOverlayAssetLibraryId] = useState('');
   const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
   const [pinnedDetailsPresetIds, setPinnedDetailsPresetIds] = useState<string[]>([]);
-  const [showPreflightDetails, setShowPreflightDetails] = useState(false);
   const hasMaxFileSize = Number(draft.maxFileSizeMB || 0) > 0;
   const sortedPresets = presets.slice().sort((a, b) => a.name.localeCompare(b.name));
   const selectedPresets = sortedPresets.filter((preset) => selectedPresetIds.includes(preset.id));
@@ -693,12 +700,6 @@ export default function PresetSelector({
     return warnings;
   })();
 
-  const preflightAffectedPresetCount = new Set(
-    preflightIssues
-      .map((issue) => issue.presetId)
-      .filter((presetId): presetId is string => Boolean(presetId))
-  ).size;
-
   const renderPresetSpecs = (preset: OutputPreset) => {
     const targetBitrate = preset.maxFileSizeMB && preset.maxFileSizeMB > 0
       ? 'Auto'
@@ -917,6 +918,24 @@ export default function PresetSelector({
       <div className="ps-header">
         <button className="btn btn-secondary" onClick={onBack}>← Back</button>
         <h2>Select Export Presets</h2>
+        <div className="ps-header-actions">
+          <button
+            className="btn ps-manage-button"
+            onClick={onManagePresets}
+            title="Manage rendering presets and output formats"
+          >
+            <span className="btn-icon" aria-hidden="true">⚙️</span>
+            <span className="btn-text">Manage Presets</span>
+          </button>
+          <button
+            className="btn ps-manage-button"
+            onClick={onManageAssets}
+            title="Manage prepend, append, and overlay assets"
+          >
+            <span className="btn-icon" aria-hidden="true">📁</span>
+            <span className="btn-text">Manage Assets</span>
+          </button>
+        </div>
       </div>
 
       <div className="preset-selector-content">
@@ -944,6 +963,15 @@ export default function PresetSelector({
               <strong>Codec:</strong> {video.codec}
             </span>
           </div>
+        </div>
+
+        <div className="video-info-actions">
+          <button className="btn btn-secondary" onClick={onChangeSourceVideo}>
+            Change Source Video
+          </button>
+          <button className="btn btn-clear" onClick={onRemoveSourceVideo}>
+            Remove Source Video
+          </button>
         </div>
 
         <div className="preset-table-wrapper">
@@ -1120,24 +1148,12 @@ export default function PresetSelector({
 
         {preflightIssues.length > 0 && (
           <div className="preflight-warning-panel" role="alert">
-            <h3>Warning: potential asset mismatch</h3>
-            <p>
-              Export can still run, but {preflightAffectedPresetCount > 0 ? `${preflightAffectedPresetCount} selected preset(s)` : 'selected settings'} may fail or produce unexpected results.
-            </p>
-            <button
-              type="button"
-              className="preflight-toggle"
-              onClick={() => setShowPreflightDetails((prev) => !prev)}
-            >
-              {showPreflightDetails ? 'Hide details' : `Show details (${preflightIssues.length})`}
-            </button>
-            {showPreflightDetails && (
-              <ul>
-                {preflightIssues.map((issue) => (
-                  <li key={issue.message}>{issue.message}</li>
-                ))}
-              </ul>
-            )}
+            <h3>Warning:</h3>
+            <ul>
+              {preflightIssues.map((issue) => (
+                <li key={issue.message}>{issue.message}</li>
+              ))}
+            </ul>
           </div>
         )}
 

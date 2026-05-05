@@ -140,6 +140,7 @@ export default function App() {
     isRendering: false,
     isLoading: false,
   });
+  const [managerReturnView, setManagerReturnView] = useState<'video-select' | 'preset-select'>('video-select');
   const [appVersion, setAppVersion] = useState('0.0.0');
 
   // Load presets on mount
@@ -188,7 +189,10 @@ export default function App() {
     }
   };
 
-  const handleOpenPresetManager = async () => {
+  const handleOpenPresetManager = async (
+    returnView: 'video-select' | 'preset-select' = 'video-select'
+  ) => {
+    setManagerReturnView(returnView);
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
@@ -216,6 +220,23 @@ export default function App() {
         isLoading: false,
       }));
     }
+  };
+
+  const handleOpenAssetManager = (
+    returnView: 'video-select' | 'preset-select' = 'video-select'
+  ) => {
+    setManagerReturnView(returnView);
+    setState((prev) => ({
+      ...prev,
+      currentView: 'asset-library-manager',
+    }));
+  };
+
+  const handleBackFromManager = () => {
+    setState((prev) => ({
+      ...prev,
+      currentView: managerReturnView,
+    }));
   };
 
   const handleVideoSelected = async (metadata: VideoMetadata) => {
@@ -247,7 +268,38 @@ export default function App() {
     setState((prev) => ({
       ...prev,
       videoError: appError,
+    }));
+  };
+
+  const handleGoToPresetSelect = () => {
+    if (!state.selectedVideo) {
+      return;
+    }
+
+    setState((prev) => ({
+      ...prev,
+      currentView: 'preset-select',
+      videoError: null,
+    }));
+  };
+
+  const handleClearSelectedVideo = () => {
+    setState((prev) => ({
+      ...prev,
+      currentView: 'video-select',
       selectedVideo: null,
+      selectedPresets: new Set(),
+      renderPlan: null,
+      videoError: null,
+      isRendering: false,
+    }));
+  };
+
+  const handleReturnToVideoSelect = () => {
+    setState((prev) => ({
+      ...prev,
+      currentView: 'video-select',
+      videoError: null,
     }));
   };
 
@@ -561,11 +613,14 @@ export default function App() {
 
         {state.currentView === 'video-select' && (
           <VideoSelector
+            selectedVideo={state.selectedVideo}
             onVideoSelected={handleVideoSelected}
             onError={handleVideoError}
             error={state.videoError}
-            onManagePresets={handleOpenPresetManager}
-            onManageAssets={() => setState((prev) => ({ ...prev, currentView: 'asset-library-manager' }))}
+            onContinueWithSelected={handleGoToPresetSelect}
+            onClearSelectedVideo={handleClearSelectedVideo}
+            onManagePresets={() => handleOpenPresetManager('video-select')}
+            onManageAssets={() => handleOpenAssetManager('video-select')}
           />
         )}
 
@@ -574,14 +629,14 @@ export default function App() {
             presets={state.availablePresets}
             onUpsertPreset={handleUpsertPreset}
             onDeletePreset={handleDeletePreset}
-            onBack={() => setState((prev) => ({ ...prev, currentView: 'video-select' }))}
+            onBack={handleBackFromManager}
           />
         )}
 
         {state.currentView === 'asset-library-manager' && (
-          <AssetLibraryErrorBoundary onBack={() => setState((prev) => ({ ...prev, currentView: 'video-select' }))}>
+          <AssetLibraryErrorBoundary onBack={handleBackFromManager}>
             <AssetLibraryManager
-              onBack={() => setState((prev) => ({ ...prev, currentView: 'video-select' }))}
+              onBack={handleBackFromManager}
             />
           </AssetLibraryErrorBoundary>
         )}
@@ -607,7 +662,11 @@ export default function App() {
             onPresetToggle={handlePresetToggle}
             onCreatePlan={handleCreatePlan}
             onUpsertPreset={handleUpsertPreset}
-            onBack={handleReset}
+            onBack={handleReturnToVideoSelect}
+            onManagePresets={() => handleOpenPresetManager('preset-select')}
+            onManageAssets={() => handleOpenAssetManager('preset-select')}
+            onChangeSourceVideo={handleReturnToVideoSelect}
+            onRemoveSourceVideo={handleClearSelectedVideo}
           />
         )}
 
